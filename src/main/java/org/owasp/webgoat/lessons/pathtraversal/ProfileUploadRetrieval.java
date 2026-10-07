@@ -97,6 +97,9 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
     }
     try {
       var id = request.getParameter("id");
+      if (id != null && !id.matches("\\d+")) {
+        return ResponseEntity.badRequest().body("Illegal id");
+      }
       var catPicture =
           new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg");
 
@@ -112,10 +115,8 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
             .body(Base64.getEncoder().encode(FileCopyUtils.copyToByteArray(catPicture)));
       }
       return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .location(new URI("/PathTraversal/random-picture?id=" + catPicture.getName()))
-          .body(
-              StringUtils.arrayToCommaDelimitedString(catPicture.getParentFile().listFiles())
-                  .getBytes());
+          .location(new URI("/PathTraversal/random-picture"))
+          .body("Image not found".getBytes());
     } catch (IOException | URISyntaxException e) {
       log.error("Image not found", e);
     }
