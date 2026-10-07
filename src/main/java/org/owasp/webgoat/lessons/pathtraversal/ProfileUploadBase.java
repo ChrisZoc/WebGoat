@@ -48,7 +48,11 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
 
     try {
-      var uploadedFile = new File(uploadDirectory, fullName);
+      String sanitizedFileName = StringUtils.cleanPath(fullName);
+      if (sanitizedFileName.contains("..") || sanitizedFileName.contains("/") || sanitizedFileName.contains("\\")) {
+        return failed(this).feedback("path-traversal-profile-attempt").attemptWasMade().build();
+      }
+      var uploadedFile = new File(uploadDirectory, sanitizedFileName);
       uploadedFile.createNewFile();
       FileCopyUtils.copy(file.getBytes(), uploadedFile);
 
@@ -109,7 +113,7 @@ public class ProfileUploadBase implements AssignmentEndpoint {
           .findFirst()
           .map(
               file -> {
-                try (var inputStream = new FileInputStream(profileDirectoryFiles[0])) {
+                try (var inputStream = new FileInputStream(file)) {
                   return Base64.getEncoder().encode(FileCopyUtils.copyToByteArray(inputStream));
                 } catch (IOException e) {
                   return defaultImage();
