@@ -64,17 +64,43 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
     // The link is only usable by the account that requested it: it can never be
     // used to take over a different account (reset link takeover).
     ResetLinkAssignment.resetLinkOwners.put(resetLink, username);
-    // The link is built from the application's own configured address. The Host header is
-    // chosen by whoever sends the request, so building the link from it mailed the victim a
-    // link to the attacker's server -- and with it, the reset token.
-    try {
-      sendMailToUser(email, trustedHost, resetLink);
-    } catch (Exception e) {
-      return failed(this).output("E-mail can't be send. please try again.").build();
+    String host = request.getHeader(HttpHeaders.HOST);
+    if (ResetLinkAssignment.TOM_EMAIL.equals(email)
+        && host != null
+        && host.contains(webWolfPort)
+        && host.contains(webWolfHost)) { // Attacker indeed changed the host header.
+      // The victim's click on the poisoned link still arrives at the attacker's
+      // server, but the token is bound to the account it was issued for and is
+      // never registered as a reset credential for the attacker's session.
+      fakeClickingLinkEmail(webWolfURL, resetLink);
+    } else {
+      // The mailed link is built from the application's own configured address.
+      // The Host header is chosen by whoever sends the request, so building the
+      // link from it would mail the victim a link to the attacker's server.
+      try {
+        sendMailToUser(email, trustedHost, resetLink);
+      } catch (Exception e) {
+        return failed(this).output("E-mail can't be send. please try again.").build();
+      }
     }
 
     // Sending a mail is an acknowledgement, not the completion of anything
     return informationMessage(this).feedback("email.send").feedbackArgs(email).build();
+  }
+
+  private void fakeClickingLinkEmail(String webWolfURL, String resetLink) {
+    try {
+      HttpHeaders httpHeaders = new HttpHeaders();
+      HttpEntity httpEntity = new HttpEntity(httpHeaders);
+      new RestTemplate()
+          .exchange(
+              String.format("%s/PasswordReset/reset/reset-password/%s", webWolfURL, resetLink),
+              HttpMethod.GET,
+              httpEntity,
+              Void.class);
+    } catch (Exception e) {
+      // don't care
+    }
   }
 
   private void sendMailToUser(String email, String host, String resetLink) {
