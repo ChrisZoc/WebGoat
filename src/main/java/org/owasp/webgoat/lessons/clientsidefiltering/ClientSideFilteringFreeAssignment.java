@@ -26,7 +26,10 @@ import org.springframework.web.bind.annotation.RestController;
   "client.side.filtering.free.hint3"
 })
 public class ClientSideFilteringFreeAssignment implements AssignmentEndpoint {
-  public static final String SUPER_COUPON_CODE = "get_it_for_free";
+  // The 100% coupon was a literal here and was also sent to every client in the coupon list,
+  // so it is rotated to a random value and no longer listed.
+  public static final String SUPER_COUPON_CODE =
+      java.util.HexFormat.of().formatHex(new java.security.SecureRandom().generateSeed(16));
 
   @PostMapping("/clientSideFiltering/getItForFree")
   @ResponseBody

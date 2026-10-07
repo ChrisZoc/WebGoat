@@ -51,10 +51,13 @@ public class SqlInjectionChallenge implements AssignmentEndpoint {
     if (attackResult == null) {
 
       try (Connection connection = dataSource.getConnection()) {
-        String checkUserQuery =
-            "select userid from sql_challenge_users where userid = '" + username + "'";
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(checkUserQuery);
+        // The existence check is bound like the INSERT below it already was. Left
+        // concatenated, its yes/no answer ("user exists") is a boolean oracle that
+        // reads any column of any row one character at a time
+        PreparedStatement statement =
+            connection.prepareStatement("select userid from sql_challenge_users where userid = ?");
+        statement.setString(1, username);
+        ResultSet resultSet = statement.executeQuery();
 
         if (resultSet.next()) {
           attackResult = failed(this).feedback("user.exists").feedbackArgs(username).build();

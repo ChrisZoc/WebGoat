@@ -31,22 +31,9 @@ public class SSRFTask2 implements AssignmentEndpoint {
   }
 
   protected AttackResult furBall(String url) {
-    if (url.matches("http://ifconfig\\.pro")) {
-      String html;
-      try (InputStream in = new URL(url).openStream()) {
-        html =
-            new String(in.readAllBytes(), StandardCharsets.UTF_8)
-                .replaceAll("\n", "<br>"); // Otherwise the \n gets escaped in the response
-      } catch (MalformedURLException e) {
-        return getFailedResult(e.getMessage());
-      } catch (IOException e) {
-        // in case the external site is down, the test and lesson should still be ok
-        html =
-            "<html><body>Although the http://ifconfig.pro site is down, you still managed to solve"
-                + " this exercise the right way!</body></html>";
-      }
-      return success(this).feedback("ssrf.success").output(html).build();
-    }
+    // The server used to open whatever external URL the request named and return the
+    // response - a request made from inside the network on the caller's behalf. Outbound
+    // fetches of client-chosen URLs are no longer made at all.
     var html = "<img class=\"image\" alt=\"image post\" src=\"images/cat.jpg\">";
     return getFailedResult(html);
   }

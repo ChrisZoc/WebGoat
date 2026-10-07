@@ -15,11 +15,8 @@ import java.util.Random;
 public class PasswordResetLink {
 
   public String createPasswordReset(String username, String key) {
-    Random random = new Random();
-    if (username.equalsIgnoreCase("admin")) {
-      // Admin has a fix reset link
-      random.setSeed(key.length());
-    }
+    // No fixed seed for anyone: a reset link has to be unguessable for every user
+    Random random = new java.security.SecureRandom();
     return scramble(random, scramble(random, scramble(random, MD5.getHashString(username))));
   }
 

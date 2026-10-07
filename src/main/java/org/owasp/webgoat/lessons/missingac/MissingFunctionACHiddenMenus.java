@@ -23,12 +23,26 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class MissingFunctionACHiddenMenus implements AssignmentEndpoint {
 
+  private final MissingAccessControlUserRepository userRepository;
+
+  public MissingFunctionACHiddenMenus(MissingAccessControlUserRepository userRepository) {
+    this.userRepository = userRepository;
+  }
+
+
   @PostMapping(
       path = "/access-control/hidden-menu",
       produces = {"application/json"})
   @ResponseBody
-  public AttackResult completed(String hiddenMenu1, String hiddenMenu2) {
-    if (hiddenMenu1.equals("Users") && hiddenMenu2.equals("Config")) {
+  public AttackResult completed(
+      String hiddenMenu1,
+      String hiddenMenu2,
+      @org.owasp.webgoat.container.CurrentUsername String username) {
+    // Hiding admin entries in the page is not access control: the functions behind them are
+    // checked on the server now, and so is this - only an admin can act on the admin menu.
+    var user = userRepository.findByUsername(username);
+    boolean admin = user != null && user.isAdmin();
+    if (admin && hiddenMenu1.equals("Users") && hiddenMenu2.equals("Config")) {
       return success(this).output("").feedback("access-control.hidden-menus.success").build();
     }
 

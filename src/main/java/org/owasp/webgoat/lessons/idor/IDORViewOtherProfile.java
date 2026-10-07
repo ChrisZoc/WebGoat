@@ -47,19 +47,9 @@ public class IDORViewOtherProfile implements AssignmentEndpoint {
       // going to use session auth to view this one
       String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
       if (userId != null && !userId.equals(authUserId)) {
-        // on the right track
-        UserProfile requestedProfile = new UserProfile(userId);
-        // secure code would ensure there was a horizontal access control check prior to dishing up
-        // the requested profile
-        if (requestedProfile.getUserId() != null
-            && requestedProfile.getUserId().equals("2342388")) {
-          return success(this)
-              .feedback("idor.view.profile.success")
-              .output(requestedProfile.profileToMap().toString())
-              .build();
-        } else {
-          return failed(this).feedback("idor.view.profile.close1").build();
-        }
+        // Horizontal access control: a profile is only served to its owner. The id in the
+        // path is chosen by the caller, so on its own it decides nothing -- the session does
+        return failed(this).feedback("idor.view.profile.close1").build();
       } else {
         return failed(this).feedback("idor.view.profile.close2").build();
       }

@@ -55,26 +55,22 @@ public class AccountVerificationHelper {
   // end of cheating check ... the method below is the one of real interest. Can you find the flaw?
 
   public boolean verifyAccount(Integer userId, HashMap<String, String> submittedQuestions) {
-    // short circuit if no questions are submitted
-    if (submittedQuestions.entrySet().size() != secQuestionStore.get(verifyUserId).size()) {
+    @SuppressWarnings("unchecked")
+    Map<String, String> expected = secQuestionStore.get(verifyUserId);
+
+    // Every expected question has to be present and answered correctly. The old check only
+    // compared the keys that happened to be submitted, so two unrelated keys passed the size
+    // test and skipped both comparisons.
+    if (submittedQuestions == null
+        || expected == null
+        || !submittedQuestions.keySet().equals(expected.keySet())) {
       return false;
     }
-
-    if (submittedQuestions.containsKey("secQuestion0")
-        && !submittedQuestions
-            .get("secQuestion0")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion0"))) {
-      return false;
+    for (Map.Entry<String, String> answer : expected.entrySet()) {
+      if (!answer.getValue().equals(submittedQuestions.get(answer.getKey()))) {
+        return false;
+      }
     }
-
-    if (submittedQuestions.containsKey("secQuestion1")
-        && !submittedQuestions
-            .get("secQuestion1")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion1"))) {
-      return false;
-    }
-
-    // else
     return true;
   }
 }

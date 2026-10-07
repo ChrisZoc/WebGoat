@@ -24,11 +24,18 @@ public class LogSpoofingTask implements AssignmentEndpoint {
     if (Strings.isEmpty(username)) {
       return failed(this).output(username).build();
     }
-    username = username.replace("\n", "<br/>");
+    // CR and LF are encoded before the value is logged, so a user name can no longer start a
+    // new, fabricated log line; the value is HTML-encoded too, since the log viewer renders it
+    username =
+        org.springframework.web.util.HtmlUtils.htmlEscape(
+            username.replace("\r", "\\r").replace("\n", "\\n"));
     if (username.contains("<p>") || username.contains("<div>")) {
       return failed(this).output("Try to think of something simple ").build();
     }
-    if (username.indexOf("<br/>") < username.indexOf("admin")) {
+    // A forged entry needs an actual line break in front of it. indexOf() returns -1 when
+    // there is none, which used to count as "before admin" and so as a forged line.
+    int lineBreak = username.indexOf("<br/>");
+    if (lineBreak >= 0 && lineBreak < username.indexOf("admin")) {
       return success(this).output(username).build();
     }
     return failed(this).output(username).build();

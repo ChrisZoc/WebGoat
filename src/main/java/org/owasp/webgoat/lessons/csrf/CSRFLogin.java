@@ -23,7 +23,14 @@ public class CSRFLogin implements AssignmentEndpoint {
       path = "/csrf/login",
       produces = {"application/json"})
   @ResponseBody
-  public AttackResult completed(@CurrentUsername String username) {
+  public AttackResult completed(
+      @CurrentUsername String username, jakarta.servlet.http.HttpServletRequest request) {
+    // Like every other state-changing request, this one has to show it comes from this
+    // application; a login-CSRF lands the victim in the attacker's account precisely through a
+    // request that does not.
+    if (!SameOrigin.check(request)) {
+      return failed(this).feedback("csrf-login-failed").feedbackArgs(username).build();
+    }
     if (username.startsWith("csrf")) {
       return success(this).feedback("csrf-login-success").build();
     }

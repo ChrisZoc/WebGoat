@@ -62,7 +62,10 @@ public class CrossSiteScriptingLesson5a implements AssignmentEndpoint {
     userSessionData.setValue("xss-reflected1-complete", "false");
     StringBuilder cart = new StringBuilder();
     cart.append("Thank you for shopping at WebGoat. <br />Your support is appreciated<hr />");
-    cart.append("<p>We have charged credit card:" + field1 + "<br />");
+    // Encoded on output: the card field is rendered as text and can never become markup
+    cart.append(
+        "<p>We have charged credit card:" + org.springframework.web.util.HtmlUtils.htmlEscape(field1)
+            + "<br />");
     cart.append("                             ------------------- <br />");
     cart.append("                               $" + totalSale);
 
@@ -71,7 +74,9 @@ public class CrossSiteScriptingLesson5a implements AssignmentEndpoint {
       userSessionData.setValue("xss-reflected1-complete", "false");
     }
 
-    if (XSS_PATTERN.test(field1)) {
+    // A reflected XSS works only if script reaches the response, so that is what is checked -
+    // not whether the request contained some
+    if (XSS_PATTERN.test(cart.toString())) {
       userSessionData.setValue("xss-reflected-5a-complete", "true");
       if (field1.toLowerCase().contains("console.log")) {
         return success(this)

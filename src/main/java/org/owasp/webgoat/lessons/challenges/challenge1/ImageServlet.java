@@ -18,7 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class ImageServlet {
 
-  public static final int PINCODE = new Random().nextInt(10000);
+  // The admin password's variable part. It used to be a four-digit PIN - ten thousand
+  // guesses - that this servlet then wrote into the bytes of the public logo. It is now a
+  // random secret that never leaves the server.
+  public static final String PINCODE =
+      java.util.HexFormat.of().formatHex(new java.security.SecureRandom().generateSeed(16));
 
   @RequestMapping(
       method = {GET, POST},
@@ -31,13 +35,7 @@ public class ImageServlet {
             .getInputStream()
             .readAllBytes();
 
-    String pincode = String.format("%04d", PINCODE);
-
-    in[81216] = (byte) pincode.charAt(0);
-    in[81217] = (byte) pincode.charAt(1);
-    in[81218] = (byte) pincode.charAt(2);
-    in[81219] = (byte) pincode.charAt(3);
-
+    // Served unmodified: a public image is no place to hide part of a credential
     return in;
   }
 }

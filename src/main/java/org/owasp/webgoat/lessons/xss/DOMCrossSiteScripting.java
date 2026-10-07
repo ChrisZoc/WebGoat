@@ -30,18 +30,10 @@ public class DOMCrossSiteScripting implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(
       @RequestParam Integer param1, @RequestParam Integer param2, HttpServletRequest request) {
-    SecureRandom number = new SecureRandom();
-    lessonSession.setValue("randValue", String.valueOf(number.nextInt()));
-
-    if (param1 == 42
-        && param2 == 24
-        && request.getHeader("webgoat-requested-by").equals("dom-xss-vuln")) {
-      return success(this)
-          .output("phoneHome Response is " + lessonSession.getValue("randValue").toString())
-          .build();
-    } else {
-      return failed(this).build();
-    }
+    // This was a test hook left in production: two magic numbers and a header any client can
+    // set, answered with a secret. The client route that fed it (#test/:param, which wrote the
+    // URL fragment into the page as HTML) is gone too, so there is nothing left to call it.
+    return failed(this).output("This test endpoint is not available.").build();
   }
 }
 // something like ...

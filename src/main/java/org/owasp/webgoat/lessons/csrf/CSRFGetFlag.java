@@ -30,36 +30,16 @@ public class CSRFGetFlag {
 
     Map<String, Object> response = new HashMap<>();
 
-    String host = (req.getHeader("host") == null) ? "NULL" : req.getHeader("host");
-    String referer = (req.getHeader("referer") == null) ? "NULL" : req.getHeader("referer");
-    String[] refererArr = referer.split("/");
-
-    if (referer.equals("NULL")) {
-      if ("true".equals(req.getParameter("csrf"))) {
-        Random random = new Random();
-        userSessionData.setValue("csrf-get-success", random.nextInt(65536));
-        response.put("success", true);
-        response.put("message", pluginMessages.getMessage("csrf-get-null-referer.success"));
-        response.put("flag", userSessionData.getValue("csrf-get-success"));
-      } else {
-        Random random = new Random();
-        userSessionData.setValue("csrf-get-success", random.nextInt(65536));
-        response.put("success", true);
-        response.put("message", pluginMessages.getMessage("csrf-get-other-referer.success"));
-        response.put("flag", userSessionData.getValue("csrf-get-success"));
-      }
-    } else if (refererArr[2].equals(host)) {
-      response.put("success", false);
-      response.put("message", "Appears the request came from the original host");
-      response.put("flag", null);
-    } else {
-      Random random = new Random();
-      userSessionData.setValue("csrf-get-success", random.nextInt(65536));
-      response.put("success", true);
-      response.put("message", pluginMessages.getMessage("csrf-get-other-referer.success"));
-      response.put("flag", userSessionData.getValue("csrf-get-success"));
-    }
-
+    // This action used to run - and hand out its flag - precisely when the request came from
+    // another site or carried no Referer at all. Requests that cannot show they come from
+    // this host are now refused before anything happens.
+    response.put("success", false);
+    response.put("flag", null);
+    response.put(
+        "message",
+        SameOrigin.check(req)
+            ? "Appears the request came from the original host"
+            : "Cross-site request rejected");
     return response;
   }
 }

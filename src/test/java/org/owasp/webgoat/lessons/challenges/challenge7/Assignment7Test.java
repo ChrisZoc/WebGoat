@@ -37,11 +37,11 @@ class Assignment7Test extends LessonTest {
         mockMvc.perform(MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/any"));
     result.andExpect(status().is(equalTo(HttpStatus.I_AM_A_TEAPOT.value())));
 
+    // The admin link used to be a fixed constant; it must no longer be accepted
     result =
         mockMvc.perform(
-            MockMvcRequestBuilders.get(
-                RESET_PASSWORD_PATH + "/" + Assignment7.ADMIN_PASSWORD_LINK));
-    result.andExpect(status().is(equalTo(HttpStatus.ACCEPTED.value())));
+            MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/375afe1104f4a487a73823c50a9292a2"));
+    result.andExpect(status().is(equalTo(HttpStatus.I_AM_A_TEAPOT.value())));
   }
 
   @Test
@@ -52,13 +52,14 @@ class Assignment7Test extends LessonTest {
             MockMvcRequestBuilders.post(CHALLENGE_PATH)
                 .param("email", "webgoat@webgoat-cloud.net"));
     result.andExpect(status().isOk());
-    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+    // Sending the mail is an acknowledgement, not a completed assignment
+    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test
-  @DisplayName("git test")
+  @DisplayName("git directory is no longer served")
   void gitTest() throws Exception {
     ResultActions result = mockMvc.perform(MockMvcRequestBuilders.get(GIT_PATH));
-    result.andExpect(content().contentType("application/zip"));
+    result.andExpect(status().isNotFound());
   }
 }

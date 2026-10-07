@@ -25,6 +25,11 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
   public @ResponseBody AttackResult completed(@RequestParam String payload) {
     XStream xstream = new XStream();
     xstream.setClassLoader(Contact.class.getClassLoader());
+    // Deserialise only the one type this endpoint expects. Without a type permission XStream
+    // instantiates any class the document names - a dynamic proxy around ProcessBuilder, say,
+    // which runs a command (CVE-2013-7285)
+    xstream.addPermission(com.thoughtworks.xstream.security.NoTypePermission.NONE);
+    xstream.allowTypes(new Class[] {ContactImpl.class});
     xstream.alias("contact", ContactImpl.class);
     xstream.ignoreUnknownElements();
     Contact contact = null;

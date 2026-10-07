@@ -48,6 +48,10 @@ import org.springframework.web.bind.annotation.RestController;
 })
 @Slf4j
 public class ProfileUploadRetrieval implements AssignmentEndpoint {
+
+  private static final String SECRET =
+      java.util.HexFormat.of().formatHex(new java.security.SecureRandom().generateSeed(16));
+
   private final File catPicturesDirectory;
 
   public ProfileUploadRetrieval(@Value("${webgoat.server.directory}") String webGoatHomeDirectory) {
@@ -70,7 +74,7 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
     try {
       Files.writeString(
           secretDirectory.toPath().resolve("path-traversal-secret.jpg"),
-          "You found it submit the SHA-512 hash of your username as answer");
+          "You found it submit this code as answer: " + SECRET);
     } catch (IOException e) {
       log.error("Unable to write secret in: {}", secretDirectory, e);
     }
@@ -81,7 +85,12 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
   public AttackResult execute(
       @RequestParam(value = "secret", required = false) String secret,
       @CurrentUsername String username) {
-    if (Sha512DigestUtils.shaHex(username).equalsIgnoreCase(secret)) {
+    // The answer used to be the SHA-512 of the user name - anyone can compute that without
+    // ever reading the file. It is now a random code that exists only inside that file.
+    if (secret != null
+        && java.security.MessageDigest.isEqual(
+            SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            secret.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
       return success(this).build();
     }
     return failed(this).build();
@@ -90,16 +99,14 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
   @GetMapping("/PathTraversal/random-picture")
   @ResponseBody
   public ResponseEntity<?> getProfilePicture(HttpServletRequest request) {
-    var queryParams = request.getQueryString();
-    if (queryParams != null && (queryParams.contains("..") || queryParams.contains("/"))) {
-      return ResponseEntity.badRequest()
-          .body("Illegal characters are not allowed in the query params");
+    // The id is matched against what a picture id is - a number from 1 to 10 - after
+    // decoding. Filtering ".." and "/" in the raw query string missed the encoded forms
+    // (%2e%2e%2f), which getParameter() then decoded into a traversal.
+    var id = request.getParameter("id");
+    if (id != null && !id.matches("([1-9]|10)")) {
+      return ResponseEntity.badRequest().body("Unknown picture");
     }
     try {
-      var id = request.getParameter("id");
-      if (id != null && !id.matches("\\d+")) {
-        return ResponseEntity.badRequest().body("Illegal id");
-      }
       var catPicture =
           new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg");
 
@@ -114,9 +121,9 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
             .location(new URI("/PathTraversal/random-picture?id=" + catPicture.getName()))
             .body(Base64.getEncoder().encode(FileCopyUtils.copyToByteArray(catPicture)));
       }
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .location(new URI("/PathTraversal/random-picture"))
-          .body("Image not found".getBytes());
+      // Not found is just not found: the directory listing it used to return disclosed the
+      // server's file layout
+      return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     } catch (IOException | URISyntaxException e) {
       log.error("Image not found", e);
     }

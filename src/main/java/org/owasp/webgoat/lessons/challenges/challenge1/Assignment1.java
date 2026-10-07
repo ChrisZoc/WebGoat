@@ -32,7 +32,7 @@ public class Assignment1 implements AssignmentEndpoint {
     boolean passwordCorrect =
         "admin".equals(username)
             && PASSWORD
-                .replace("1234", String.format("%04d", ImageServlet.PINCODE))
+                .replace("1234", ImageServlet.PINCODE)
                 .equals(password);
     if (passwordCorrect && ipAddressKnown) {
       return success(this).feedback("challenge.solved").feedbackArgs(flags.getFlag(1)).build();

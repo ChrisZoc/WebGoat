@@ -29,6 +29,22 @@ import org.springframework.web.client.RestTemplate;
  */
 @RestController
 public class SimpleMailAssignment implements AssignmentEndpoint {
+
+  // The "new password" mailed after a reset used to be the user name reversed, which anyone
+  // can compute without ever seeing the mail. It is now random, issued per reset, and only
+  // the latest one issued is accepted.
+  private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+  private static final java.util.Map<String, String> NEW_PASSWORDS =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
+  private static String issueNewPassword(String username) {
+    byte[] bytes = new byte[12];
+    RANDOM.nextBytes(bytes);
+    String password = java.util.HexFormat.of().formatHex(bytes);
+    NEW_PASSWORDS.put(username, password);
+    return password;
+  }
+
   private final String webWolfURL;
   private RestTemplate restTemplate;
 
@@ -49,7 +65,12 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
     String emailAddress = ofNullable(email).orElse("unknown@webgoat.org");
     String username = extractUsername(emailAddress);
 
-    if (username.equals(webGoatUsername) && StringUtils.reverse(username).equals(password)) {
+    String issued = NEW_PASSWORDS.get(username);
+    if (username.equals(webGoatUsername)
+        && issued != null
+        && java.security.MessageDigest.isEqual(
+            issued.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            String.valueOf(password).getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
       return success(this).build();
     } else {
       return failed(this).feedbackArgs("password-reset-simple.password_incorrect").build();
@@ -80,7 +101,7 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
               .time(LocalDateTime.now())
               .contents(
                   "Thanks for resetting your password, your new password is: "
-                      + StringUtils.reverse(username))
+                      + issueNewPassword(username))
               .sender("webgoat@owasp.org")
               .build();
       try {

@@ -40,13 +40,13 @@ public class Assignment5 implements AssignmentEndpoint {
       return failed(this).feedback("user.not.larry").feedbackArgs(username_login).build();
     }
     try (var connection = dataSource.getConnection()) {
+      // A PreparedStatement only protects the values passed through setString(); built by
+      // concatenation it is just a Statement with a different name
       PreparedStatement statement =
           connection.prepareStatement(
-              "select password from challenge_users where userid = '"
-                  + username_login
-                  + "' and password = '"
-                  + password_login
-                  + "'");
+              "select password from challenge_users where userid = ? and password = ?");
+      statement.setString(1, username_login);
+      statement.setString(2, password_login);
       ResultSet resultSet = statement.executeQuery();
 
       if (resultSet.next()) {

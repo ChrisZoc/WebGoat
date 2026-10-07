@@ -48,17 +48,22 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
 
     try {
-      String sanitizedFileName = StringUtils.cleanPath(fullName);
-      if (sanitizedFileName.contains("..") || sanitizedFileName.contains("/") || sanitizedFileName.contains("\\")) {
-        return failed(this).feedback("path-traversal-profile-attempt").attemptWasMade().build();
+      var uploadedFile = new File(uploadDirectory, fullName);
+      // The target is resolved and refused unless it stays inside the user's own directory,
+      // and that happens before anything is written. Stripping "../" - once, or in any other
+      // pattern, or trusting the uploaded file's own name instead - can always be
+      // outmanoeuvred; comparing canonical paths cannot.
+      if (!uploadDirectory
+          .getCanonicalPath()
+          .equals(uploadedFile.getCanonicalFile().getParentFile().getCanonicalPath())) {
+        return failed(this)
+            .feedback("path-traversal-profile-attempt")
+            .feedbackArgs(fullName)
+            .build();
       }
-      var uploadedFile = new File(uploadDirectory, sanitizedFileName);
       uploadedFile.createNewFile();
       FileCopyUtils.copy(file.getBytes(), uploadedFile);
 
-      if (attemptWasMade(uploadDirectory, uploadedFile)) {
-        return solvedIt(uploadedFile);
-      }
       return informationMessage(this)
           .feedback("path-traversal-profile-updated")
           .feedbackArgs(uploadedFile.getAbsoluteFile())
@@ -79,24 +84,6 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     return uploadDirectory;
   }
 
-  private boolean attemptWasMade(File expectedUploadDirectory, File uploadedFile)
-      throws IOException {
-    return !expectedUploadDirectory
-        .getCanonicalPath()
-        .equals(uploadedFile.getParentFile().getCanonicalPath());
-  }
-
-  private AttackResult solvedIt(File uploadedFile) throws IOException {
-    if (uploadedFile.getCanonicalFile().getParentFile().getName().endsWith("PathTraversal")) {
-      return success(this).build();
-    }
-    return failed(this)
-        .attemptWasMade()
-        .feedback("path-traversal-profile-attempt")
-        .feedbackArgs(uploadedFile.getCanonicalPath())
-        .build();
-  }
-
   public ResponseEntity<?> getProfilePicture(@CurrentUsername String username) {
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(MediaType.IMAGE_JPEG_VALUE))
@@ -113,7 +100,7 @@ public class ProfileUploadBase implements AssignmentEndpoint {
           .findFirst()
           .map(
               file -> {
-                try (var inputStream = new FileInputStream(file)) {
+                try (var inputStream = new FileInputStream(profileDirectoryFiles[0])) {
                   return Base64.getEncoder().encode(FileCopyUtils.copyToByteArray(inputStream));
                 } catch (IOException e) {
                   return defaultImage();

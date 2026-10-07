@@ -70,10 +70,13 @@ public class CommentsCache {
     var jc = JAXBContext.newInstance(Comment.class);
     var xif = XMLInputFactory.newInstance();
 
+    // Hardened unconditionally. The protection used to sit behind a flag that every caller
+    // passed as false, so a DOCTYPE could declare an external entity and pull in local files
+    // (file:///) or reach internal URLs. No caller needs a DTD to send a comment.
+    xif.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+    xif.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
     xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
     xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-    xif.setProperty(XMLInputFactory.SUPPORT_DTD, false);
-    xif.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
 
     var xsr = xif.createXMLStreamReader(new StringReader(xml));
 

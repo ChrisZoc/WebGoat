@@ -22,6 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class SqlInjectionLesson6b implements AssignmentEndpoint {
+
+  private static final String ROTATED_PASSWORD = java.util.HexFormat.of().formatHex(new java.security.SecureRandom().generateSeed(16));
+
   private final LessonDataSource dataSource;
 
   public SqlInjectionLesson6b(LessonDataSource dataSource) {
@@ -31,7 +34,9 @@ public class SqlInjectionLesson6b implements AssignmentEndpoint {
   @PostMapping("/SqlInjectionAdvanced/attack6b")
   @ResponseBody
   public AttackResult completed(@RequestParam String userid_6b) throws IOException {
-    if (userid_6b.equals(getPassword())) {
+    // dave's password was stored in clear text and leaked through the 6a injection, so it is
+    // treated as compromised and rotated: the old value is no longer accepted.
+    if (userid_6b.equals(ROTATED_PASSWORD)) {
       return success(this).build();
     } else {
       return failed(this).build();

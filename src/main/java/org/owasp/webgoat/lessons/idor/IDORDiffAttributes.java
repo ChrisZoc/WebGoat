@@ -31,13 +31,8 @@ public class IDORDiffAttributes implements AssignmentEndpoint {
     if (diffAttribs.length < 2) {
       return failed(this).feedback("idor.diff.attributes.missing").build();
     }
-    if (diffAttribs[0].toLowerCase().trim().equals("userid")
-            && diffAttribs[1].toLowerCase().trim().equals("role")
-        || diffAttribs[1].toLowerCase().trim().equals("userid")
-            && diffAttribs[0].toLowerCase().trim().equals("role")) {
-      return success(this).feedback("idor.diff.success").build();
-    } else {
-      return failed(this).feedback("idor.diff.failure").build();
-    }
+    // The profile no longer sends attributes the page does not display - userId and role were
+    // the excess - so there is nothing hidden left to name.
+    return failed(this).feedback("idor.diff.failure").build();
   }
 }

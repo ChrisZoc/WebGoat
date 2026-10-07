@@ -33,11 +33,9 @@ public class IDORViewOwnProfile {
         // going to use session auth to view this one
         String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
         UserProfile userProfile = new UserProfile(authUserId);
-        details.put("userId", userProfile.getUserId());
         details.put("name", userProfile.getName());
         details.put("color", userProfile.getColor());
         details.put("size", userProfile.getSize());
-        details.put("role", userProfile.getRole());
       } else {
         details.put(
             "error",

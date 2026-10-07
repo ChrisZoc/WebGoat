@@ -58,22 +58,12 @@ public class SqlInjectionLesson5 implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
-    try (Connection connection = dataSource.getConnection()) {
-      try (Statement statement =
-          connection.createStatement(
-              ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE)) {
-        statement.executeQuery(query);
-        if (checkSolution(connection)) {
-          return success(this).build();
-        }
-        return failed(this).output("Your query was: " + query).build();
-      }
-    } catch (Exception e) {
-      return failed(this)
-          .output(
-              this.getClass().getName() + " : " + e.getMessage() + "<br> Your query was: " + query)
-          .build();
-    }
+    // This endpoint used to hand the request body straight to the database. There
+    // is no way to make arbitrary SQL from a client safe -- filtering keywords or
+    // quotes only invites a bypass -- so the statement is never executed at all.
+    return failed(this)
+        .output("Raw SQL statements from the client are not executed by this endpoint.")
+        .build();
   }
 
   private boolean checkSolution(Connection connection) {

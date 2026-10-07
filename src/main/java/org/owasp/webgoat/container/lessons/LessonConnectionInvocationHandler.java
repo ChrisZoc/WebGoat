@@ -8,7 +8,6 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
-import java.sql.SQLException;
 import org.owasp.webgoat.container.users.WebGoatUser;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -28,13 +27,9 @@ public class LessonConnectionInvocationHandler implements InvocationHandler {
   public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
     var authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication != null && authentication.getPrincipal() instanceof WebGoatUser user) {
-      String safeSchema = user.getUsername().replace("\"", "");
       try (var statement = targetConnection.createStatement()) {
-        statement.execute("SET SCHEMA \"" + safeSchema + "\"");
+        statement.execute("SET SCHEMA \"" + user.getUsername() + "\"");
       }
-    }
-    if ("createStatement".equals(method.getName()) || "prepareCall".equals(method.getName())) {
-      throw new SQLException("Unsafe JDBC statement creation is not allowed for lesson connections");
     }
     try {
       return method.invoke(targetConnection, args);

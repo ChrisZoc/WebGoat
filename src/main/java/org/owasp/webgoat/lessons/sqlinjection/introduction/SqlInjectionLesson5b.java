@@ -42,7 +42,9 @@ public class SqlInjectionLesson5b implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String login_count, String accountName) {
-    String queryString = "SELECT * From user_data WHERE Login_Count = ? and userid= " + accountName;
+    // Both values are bound. Binding only Login_Count and concatenating userid left the
+    // second, numeric context wide open -- no quote needed to append OR 1=1
+    String queryString = "SELECT * From user_data WHERE Login_Count = ? and userid= ?";
     try (Connection connection = dataSource.getConnection()) {
       PreparedStatement query =
           connection.prepareStatement(
@@ -63,6 +65,16 @@ public class SqlInjectionLesson5b implements AssignmentEndpoint {
       }
 
       query.setInt(1, count);
+
+      int userid;
+      try {
+        userid = Integer.parseInt(accountName.trim());
+      } catch (Exception e) {
+        return failed(this)
+            .output("Could not parse: " + accountName + " to a number")
+            .build();
+      }
+      query.setInt(2, userid);
       // String query = "SELECT * FROM user_data WHERE Login_Count = " + login_count + " and userid
       // = " + accountName, ;
       try {

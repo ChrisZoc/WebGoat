@@ -79,6 +79,8 @@ public class StoredXssComments implements AssignmentEndpoint {
     List<Comment> comments = userComments.getOrDefault(username, new ArrayList<>());
     comment.setDateTime(LocalDateTime.now().format(fmt));
     comment.setUser(username);
+    // Stored encoded, so whatever renders the guestbook later receives text, not markup
+    comment.setText(org.springframework.web.util.HtmlUtils.htmlEscape(comment.getText()));
 
     comments.add(comment);
     userComments.put(username, comments);

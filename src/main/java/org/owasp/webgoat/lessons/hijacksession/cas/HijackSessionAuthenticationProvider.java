@@ -30,8 +30,19 @@ public class HijackSessionAuthenticationProvider implements AuthenticationProvid
   protected static final int MAX_SESSIONS = 50;
 
   private static final DoublePredicate PROBABILITY_DOUBLE_PREDICATE = pr -> pr < 0.75;
+  private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
+  // A counter and a timestamp are both guessable from one observed id, which let anyone
+  // walk the gaps between ids and land on someone else's authenticated session. The id now
+  // ends in 128 random bits; the counter and timestamp in front are only metadata.
   private static final Supplier<String> GENERATE_SESSION_ID =
-      () -> ++id + "-" + Instant.now().toEpochMilli();
+      () -> ++id + "-" + Instant.now().toEpochMilli() + "-" + randomHex();
+
+  private static String randomHex() {
+    byte[] bytes = new byte[16];
+    RANDOM.nextBytes(bytes);
+    return java.util.HexFormat.of().formatHex(bytes);
+  }
   public static final Supplier<Authentication> AUTHENTICATION_SUPPLIER =
       () -> Authentication.builder().id(GENERATE_SESSION_ID.get()).build();
 

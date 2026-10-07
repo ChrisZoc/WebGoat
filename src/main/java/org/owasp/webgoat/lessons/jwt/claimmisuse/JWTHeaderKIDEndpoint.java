@@ -39,6 +39,10 @@ import org.springframework.web.bind.annotation.RestController;
 })
 @RequestMapping("/JWT/")
 public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
+
+  private static final java.util.Map<String, byte[]> SIGNING_KEYS =
+      java.util.Map.of("webgoat_key", new java.security.SecureRandom().generateSeed(32));
+
   private final LessonDataSource dataSource;
 
   private JWTHeaderKIDEndpoint(LessonDataSource dataSource) {
@@ -67,20 +71,16 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
                     new SigningKeyResolverAdapter() {
                       @Override
                       public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
-                        final String kid = (String) header.get("kid");
-                        try (var connection = dataSource.getConnection()) {
-                          ResultSet rs =
-                              connection
-                                  .createStatement()
-                                  .executeQuery(
-                                      "SELECT key FROM jwt_keys WHERE id = '" + kid + "'");
-                          while (rs.next()) {
-                            return TextCodec.BASE64.decode(rs.getString(1));
-                          }
-                        } catch (SQLException e) {
-                          errorMessage[0] = e.getMessage();
+                        // The kid comes from the token, i.e. from whoever sent it. It used to
+                        // be spliced into a SQL query - so a UNION could hand back a key the
+                        // attacker chose - and the key it found was a literal seeded in a
+                        // public migration. Keys are now held by the server and the kid only
+                        // selects among them.
+                        byte[] key = SIGNING_KEYS.get((String) header.get("kid"));
+                        if (key == null) {
+                          throw new io.jsonwebtoken.SignatureException("Unknown key id");
                         }
-                        return null;
+                        return key;
                       }
                     })
                 .parseClaimsJws(token);

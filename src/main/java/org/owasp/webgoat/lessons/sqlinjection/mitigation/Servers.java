@@ -48,6 +48,12 @@ public class Servers {
   @ResponseBody
   public List<Server> sort(@RequestParam String column) throws Exception {
     List<Server> servers = new ArrayList<>();
+    // ORDER BY cannot take a bind parameter, so the column is matched against the ones that
+    // exist. It used to be appended as-is, which let a CASE expression read hidden rows one
+    // comparison at a time.
+    if (!java.util.Set.of("id", "hostname", "ip", "mac", "status", "description").contains(column)) {
+      column = "id";
+    }
 
     try (var connection = dataSource.getConnection()) {
       try (var statement =

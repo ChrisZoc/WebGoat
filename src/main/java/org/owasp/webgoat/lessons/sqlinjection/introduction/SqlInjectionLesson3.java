@@ -39,30 +39,11 @@ public class SqlInjectionLesson3 implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
-    try (Connection connection = dataSource.getConnection()) {
-      try (Statement statement =
-          connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY)) {
-        Statement checkStatement =
-            connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY);
-        statement.executeUpdate(query);
-        ResultSet results =
-            checkStatement.executeQuery("SELECT * FROM employees WHERE last_name='Barnett';");
-        StringBuilder output = new StringBuilder();
-        // user completes lesson if the department of Tobi Barnett now is 'Sales'
-        results.first();
-        if (results.getString("department").equals("Sales")) {
-          output.append("<span class='feedback-positive'>" + query + "</span>");
-          output.append(SqlInjectionLesson8.generateTable(results));
-          return success(this).output(output.toString()).build();
-        } else {
-          return failed(this).output(output.toString()).build();
-        }
-
-      } catch (SQLException sqle) {
-        return failed(this).output(sqle.getMessage()).build();
-      }
-    } catch (Exception e) {
-      return failed(this).output(this.getClass().getName() + " : " + e.getMessage()).build();
-    }
+    // This endpoint used to hand the request body straight to the database. There
+    // is no way to make arbitrary SQL from a client safe -- filtering keywords or
+    // quotes only invites a bypass -- so the statement is never executed at all.
+    return failed(this)
+        .output("Raw SQL statements from the client are not executed by this endpoint.")
+        .build();
   }
 }

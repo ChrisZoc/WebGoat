@@ -41,6 +41,12 @@ public class SqlInjectionLesson13 implements AssignmentEndpoint {
   @PostMapping("/SqlInjectionMitigations/attack12a")
   @ResponseBody
   public AttackResult completed(@RequestParam String ip) {
+    // This endpoint confirmed whether a guessed address belonged to webgoat-prd, the server the
+    // listing deliberately hides - an oracle for exactly the value the ORDER BY injection
+    // leaked. With the injection closed, nothing should confirm it to a client either.
+    if (ip != null) {
+      return failed(this).build();
+    }
     try (Connection connection = dataSource.getConnection();
         PreparedStatement preparedStatement =
             connection.prepareStatement("select ip from servers where ip = ? and hostname = ?")) {

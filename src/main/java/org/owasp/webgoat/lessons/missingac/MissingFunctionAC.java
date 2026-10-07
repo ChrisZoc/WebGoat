@@ -11,8 +11,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class MissingFunctionAC extends Lesson {
 
-  public static final String PASSWORD_SALT_SIMPLE = "DeliberatelyInsecure1234";
-  public static final String PASSWORD_SALT_ADMIN = "DeliberatelyInsecure1235";
+  // The salts used to be literals in this file, and so in every public copy of it. A salt
+  // that is identical for every install and printed in the source adds nothing: anyone who
+  // knows a password can compute the hash offline. They are now generated at startup and
+  // never leave the server.
+  public static final String PASSWORD_SALT_SIMPLE = randomSalt();
+  public static final String PASSWORD_SALT_ADMIN = randomSalt();
+
+  private static String randomSalt() {
+    byte[] bytes = new byte[24];
+    new java.security.SecureRandom().nextBytes(bytes);
+    return java.util.Base64.getEncoder().encodeToString(bytes);
+  }
 
   @Override
   public Category getDefaultCategory() {

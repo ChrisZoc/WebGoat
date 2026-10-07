@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.bypassrestrictions;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -25,21 +26,17 @@ public class BypassRestrictionsFieldRestrictions implements AssignmentEndpoint {
       @RequestParam String checkbox,
       @RequestParam String shortInput,
       @RequestParam String readOnlyInput) {
-    if (select.equals("option1") || select.equals("option2")) {
-      return failed(this).build();
+    // The restrictions the form shows are enforced here as well: a request can carry any value
+    // for any field, whatever the HTML allowed. Anything outside them is refused.
+    boolean valid =
+        java.util.Set.of("option1", "option2").contains(select)
+            && java.util.Set.of("option1", "option2").contains(radio)
+            && java.util.Set.of("on", "off").contains(checkbox)
+            && shortInput.length() <= 5
+            && "change".equals(readOnlyInput);
+    if (!valid) {
+      return failed(this).output("Rejected: values outside the allowed ones.").build();
     }
-    if (radio.equals("option1") || radio.equals("option2")) {
-      return failed(this).build();
-    }
-    if (checkbox.equals("on") || checkbox.equals("off")) {
-      return failed(this).build();
-    }
-    if (shortInput.length() <= 5) {
-      return failed(this).build();
-    }
-    if ("change".equals(readOnlyInput)) {
-      return failed(this).build();
-    }
-    return success(this).build();
+    return informationMessage(this).build();
   }
 }

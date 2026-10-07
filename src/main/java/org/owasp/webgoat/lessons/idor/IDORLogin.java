@@ -21,6 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @AssignmentHints({"idor.hints.idor_login"})
 public class IDORLogin implements AssignmentEndpoint {
+
+  private static final String TOM_PASSWORD = java.util.HexFormat.of().formatHex(new java.security.SecureRandom().generateSeed(16));
+  private static final String BILL_PASSWORD = java.util.HexFormat.of().formatHex(new java.security.SecureRandom().generateSeed(16));
+
   private final LessonSession lessonSession;
 
   public IDORLogin(LessonSession lessonSession) {
@@ -32,13 +36,15 @@ public class IDORLogin implements AssignmentEndpoint {
   public void initIDORInfo() {
 
     idorUserInfo.put("tom", new HashMap<String, String>());
-    idorUserInfo.get("tom").put("password", "cat");
+    // Passwords used to be literals here (tom/cat, bill/buffalo), published with the source;
+    // they are rotated to random values held only by the server.
+    idorUserInfo.get("tom").put("password", TOM_PASSWORD);
     idorUserInfo.get("tom").put("id", "2342384");
     idorUserInfo.get("tom").put("color", "yellow");
     idorUserInfo.get("tom").put("size", "small");
 
     idorUserInfo.put("bill", new HashMap<String, String>());
-    idorUserInfo.get("bill").put("password", "buffalo");
+    idorUserInfo.get("bill").put("password", BILL_PASSWORD);
     idorUserInfo.get("bill").put("id", "2342388");
     idorUserInfo.get("bill").put("color", "brown");
     idorUserInfo.get("bill").put("size", "large");

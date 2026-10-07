@@ -15,23 +15,29 @@ $(document).ready(function () {
         )
     })
 
+    var html = '<li class="comment">' +
+        '<div class="pull-left">' +
+        '<img class="avatar" src="images/avatar1.png" alt="avatar"/>' +
+        '</div>' +
+        '<div class="comment-body">' +
+        '<div class="comment-heading">' +
+        '<h4 class="user">USER</h4>' +
+        '<h5 class="time">DATETIME</h5>' +
+        '</div>' +
+        '<p>COMMENT</p>' +
+        '</div>' +
+        '</li>';
+
     getChallenges();
 
     function getChallenges() {
         $("#list").empty();
         $.get('CrossSiteScriptingStored/stored-xss', function (result, status) {
             for (var i = 0; i < result.length; i++) {
-                var li = $("<li>").addClass("comment");
-                var pullLeft = $("<div>").addClass("pull-left");
-                pullLeft.append($("<img>").addClass("avatar").attr("src", "images/avatar1.png").attr("alt", "avatar"));
-                var body = $("<div>").addClass("comment-body");
-                var heading = $("<div>").addClass("comment-heading");
-                heading.append($("<h4>").addClass("user").text(result[i].user));
-                heading.append($("<h5>").addClass("time").text(result[i].dateTime));
-                body.append(heading);
-                body.append($("<p>").text(result[i].text));
-                li.append(pullLeft).append(body);
-                $("#list").append(li);
+                var comment = html.replace('USER', result[i].user);
+                comment = comment.replace('DATETIME', result[i].dateTime);
+                comment = comment.replace('COMMENT', result[i].text);
+                $("#list").append(comment);
             }
 
         });

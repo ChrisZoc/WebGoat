@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.htmltampering;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -22,9 +23,16 @@ public class HtmlTamperingTask implements AssignmentEndpoint {
   @PostMapping("/HtmlTampering/task")
   @ResponseBody
   public AttackResult completed(@RequestParam String QTY, @RequestParam String Total) {
-    if (Float.parseFloat(QTY) * 2999.99 > Float.parseFloat(Total) + 1) {
-      return success(this).feedback("html-tampering.tamper.success").build();
+    // The price is the server's to compute. The total used to be taken from the form, so
+    // editing a hidden field changed what the order cost; a total that does not match the
+    // server's own calculation is now refused.
+    float expected = Float.parseFloat(QTY) * 2999.99f;
+    if (Math.abs(Float.parseFloat(Total) - expected) > 1) {
+      return failed(this)
+          .feedback("html-tampering.tamper.failure")
+          .output("Rejected: the total does not match the price.")
+          .build();
     }
-    return failed(this).feedback("html-tampering.tamper.failure").build();
+    return informationMessage(this).build();
   }
 }

@@ -49,7 +49,6 @@ define(['jquery',
             'welcome': 'welcomeRoute',
             'lesson/:name': 'lessonRoute',
             'lesson/:name/:pageNum': 'lessonPageRoute',
-            'test/:param': 'testRoute',
             'reportCard': 'reportCard'
         },
 
@@ -109,11 +108,6 @@ define(['jquery',
             pageNum = (_.isNumber(parseInt(pageNum))) ? parseInt(pageNum) : 0;
             this.lessonController.loadLesson(name, pageNum);
             this.menuController.updateMenu(name);
-        },
-
-        testRoute: function (param) {
-            this.lessonController.testHandler(param);
-            //this.menuController.updateMenu(name);
         },
 
         welcomeRoute: function () {

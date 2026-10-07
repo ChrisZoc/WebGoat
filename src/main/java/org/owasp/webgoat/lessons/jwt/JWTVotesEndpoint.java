@@ -52,7 +52,10 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTVotesEndpoint implements AssignmentEndpoint {
 
-  public static final String JWT_PASSWORD = TextCodec.BASE64.encode("victory");
+  // The signing key was the word "victory", readable in this public source file: anyone could
+  // mint a token with admin=true. It is now 64 random bytes generated at startup.
+  public static final String JWT_PASSWORD =
+      TextCodec.BASE64.encode(new java.security.SecureRandom().generateSeed(64));
   private static String validUsers = "TomJerrySylvester";
 
   private static int totalVotes = 38929;
@@ -136,7 +139,7 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       value.setSerializationView(Views.GuestView.class);
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
+        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
         Claims claims = (Claims) jwt.getBody();
         String user = (String) claims.get("user");
         if ("Guest".equals(user) || !validUsers.contains(user)) {
@@ -161,7 +164,7 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
+        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
         Claims claims = (Claims) jwt.getBody();
         String user = (String) claims.get("user");
         if (!validUsers.contains(user)) {
@@ -184,7 +187,7 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       return failed(this).feedback("jwt-invalid-token").build();
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
+        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
         Claims claims = (Claims) jwt.getBody();
         boolean isAdmin = Boolean.valueOf(String.valueOf(claims.get("admin")));
         if (!isAdmin) {

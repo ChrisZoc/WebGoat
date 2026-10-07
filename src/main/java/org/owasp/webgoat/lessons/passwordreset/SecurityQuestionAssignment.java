@@ -81,12 +81,8 @@ public class SecurityQuestionAssignment implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(@RequestParam String question) {
     var answer = of(questions.get(question));
-    if (answer.isPresent()) {
-      triedQuestions.incr(question);
-      if (triedQuestions.isComplete()) {
-        return success(this).output("<b>" + answer + "</b>").build();
-      }
-    }
+    // These questions are the weak ones the lesson lists; they are no longer accepted as security
+    // questions at all, so choosing them completes nothing.
     return informationMessage(this)
         .feedback("password-questions-one-successful")
         .output(answer.orElse("Unknown question, please try again..."))

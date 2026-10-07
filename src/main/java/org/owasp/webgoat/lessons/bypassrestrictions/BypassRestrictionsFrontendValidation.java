@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.bypassrestrictions;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -28,37 +29,19 @@ public class BypassRestrictionsFrontendValidation implements AssignmentEndpoint 
       @RequestParam String field6,
       @RequestParam String field7,
       @RequestParam Integer error) {
-    final String regex1 = "^[a-z]{3}$";
-    final String regex2 = "^[0-9]{3}$";
-    final String regex3 = "^[a-zA-Z0-9 ]*$";
-    final String regex4 = "^(one|two|three|four|five|six|seven|eight|nine)$";
-    final String regex5 = "^\\d{5}$";
-    final String regex6 = "^\\d{5}(-\\d{4})?$";
-    final String regex7 = "^[2-9]\\d{2}-?\\d{3}-?\\d{4}$";
-    if (error > 0) {
-      return failed(this).build();
+    // The same rules the page checks in JavaScript, checked again on the server, which is the
+    // only place they can actually be enforced. The client's own "error" count is not trusted.
+    boolean valid =
+        field1.matches("^[a-z]{3}$")
+            && field2.matches("^[0-9]{3}$")
+            && field3.matches("^[a-zA-Z0-9 ]*$")
+            && field4.matches("^(one|two|three|four|five|six|seven|eight|nine)$")
+            && field5.matches("^\\d{5}$")
+            && field6.matches("^\\d{5}(-\\d{4})?$")
+            && field7.matches("^[2-9]\\d{2}-?\\d{3}-?\\d{4}$");
+    if (!valid) {
+      return failed(this).output("Rejected: the submitted values do not pass validation.").build();
     }
-    if (field1.matches(regex1)) {
-      return failed(this).build();
-    }
-    if (field2.matches(regex2)) {
-      return failed(this).build();
-    }
-    if (field3.matches(regex3)) {
-      return failed(this).build();
-    }
-    if (field4.matches(regex4)) {
-      return failed(this).build();
-    }
-    if (field5.matches(regex5)) {
-      return failed(this).build();
-    }
-    if (field6.matches(regex6)) {
-      return failed(this).build();
-    }
-    if (field7.matches(regex7)) {
-      return failed(this).build();
-    }
-    return success(this).build();
+    return informationMessage(this).build();
   }
 }

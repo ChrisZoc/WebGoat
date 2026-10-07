@@ -53,7 +53,10 @@ public class QuestionsAssignment implements AssignmentEndpoint {
           .feedbackArgs(username)
           .build();
     } else if (validAnswer.equals(securityQuestion)) {
-      return success(this).build();
+      // A security question is not enough to reset a password on its own: "favourite colour"
+      // has a handful of likely answers and they are often public. Resets go through the
+      // e-mailed link instead.
+      return failed(this).feedback("password-questions-wrong-user").build();
     }
     return failed(this).build();
   }

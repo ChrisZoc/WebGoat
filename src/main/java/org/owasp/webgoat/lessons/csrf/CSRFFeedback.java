@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.csrf;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -54,16 +55,15 @@ public class CSRFFeedback implements AssignmentEndpoint {
     } catch (IOException e) {
       return failed(this).feedback(ExceptionUtils.getStackTrace(e)).build();
     }
-    boolean correctCSRF =
-        requestContainsWebGoatCookie(request.getCookies())
-            && request.getContentType().contains(MediaType.TEXT_PLAIN_VALUE);
-    correctCSRF &= hostOrRefererDifferentHost(request);
-    if (correctCSRF) {
-      String flag = UUID.randomUUID().toString();
-      userSessionData.setValue("csrf-feedback", flag);
-      return success(this).feedback("csrf-feedback-success").feedbackArgs(flag).build();
+    // A JSON endpoint has to insist on a JSON content type: text/plain is one of the types a
+    // cross-site HTML form can send without a CORS preflight, which is what made the forged
+    // feedback possible. The origin is checked as well, and a forged request issues nothing.
+    String contentType = request.getContentType();
+    boolean json = contentType != null && contentType.startsWith(MediaType.APPLICATION_JSON_VALUE);
+    if (!json || !SameOrigin.check(request)) {
+      return failed(this).build();
     }
-    return failed(this).build();
+    return informationMessage(this).build();
   }
 
   @PostMapping(path = "/csrf/feedback", produces = "application/json")

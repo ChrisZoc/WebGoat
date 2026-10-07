@@ -31,6 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
 @AssignmentHints({"jwt-secret-hint1", "jwt-secret-hint2", "jwt-secret-hint3"})
 public class JWTSecretKeyEndpoint implements AssignmentEndpoint {
 
+  private static final java.util.Set<String> ISSUED =
+      java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
+
   public static final String[] SECRETS = {
     "victory", "business", "available", "shipping", "washington"
   };
@@ -43,7 +47,8 @@ public class JWTSecretKeyEndpoint implements AssignmentEndpoint {
   @RequestMapping(path = "/JWT/secret/gettoken", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String getSecretToken() {
-    return Jwts.builder()
+    String token =
+        Jwts.builder()
         .setIssuer("WebGoat Token Builder")
         .setAudience("webgoat.org")
         .setIssuedAt(Calendar.getInstance().getTime())
@@ -54,11 +59,19 @@ public class JWTSecretKeyEndpoint implements AssignmentEndpoint {
         .claim("Role", new String[] {"Manager", "Project Administrator"})
         .signWith(SignatureAlgorithm.HS256, JWT_SECRET)
         .compact();
+    ISSUED.add(token);
+    return token;
   }
 
   @PostMapping("/JWT/secret")
   @ResponseBody
   public AttackResult login(@RequestParam String token) {
+    // The signing secret is a dictionary word, so a valid signature alone cannot prove a token
+    // is genuine: only tokens this endpoint issued are honoured, which keeps a re-signed,
+    // edited token out.
+    if (!ISSUED.contains(token)) {
+      return failed(this).feedback("jwt-invalid-token").build();
+    }
     try {
       Jwt jwt = Jwts.parser().setSigningKey(JWT_SECRET).parseClaimsJws(token);
       Claims claims = (Claims) jwt.getBody();

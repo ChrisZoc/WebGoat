@@ -4,7 +4,7 @@
  */
 package org.owasp.webgoat.lessons.challenges.challenge7;
 
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
@@ -37,7 +37,20 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 public class Assignment7 implements AssignmentEndpoint {
 
-  public static final String ADMIN_PASSWORD_LINK = "375afe1104f4a487a73823c50a9292a2";
+  // Issued reset links and the user each one resets. Random and single-use: the admin link
+  // used to be the constant 375afe11... in this file, produced by a generator that seeded
+  // admin's Random with a fixed value - and that generator's source was served below as /.git
+  private static final java.util.Map<String, String> ISSUED_LINKS =
+      new java.util.concurrent.ConcurrentHashMap<>();
+  private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
+  private static String newLink(String username) {
+    byte[] bytes = new byte[16];
+    RANDOM.nextBytes(bytes);
+    String link = java.util.HexFormat.of().formatHex(bytes);
+    ISSUED_LINKS.put(link, username);
+    return link;
+  }
 
   private static final String TEMPLATE =
       "Hi, you requested a password reset link, please use this <a target='_blank'"
@@ -63,7 +76,7 @@ public class Assignment7 implements AssignmentEndpoint {
 
   @GetMapping("/challenge/7/reset-password/{link}")
   public ResponseEntity<String> resetPassword(@PathVariable(value = "link") String link) {
-    if (link.equals(ADMIN_PASSWORD_LINK)) {
+    if ("admin".equalsIgnoreCase(ISSUED_LINKS.remove(link))) {
       return ResponseEntity.accepted()
           .body(
               "<h1>Success!!</h1>"
@@ -90,7 +103,7 @@ public class Assignment7 implements AssignmentEndpoint {
                     String.format(
                         TEMPLATE,
                         uri.getScheme() + "://" + uri.getHost(),
-                        new PasswordResetLink().createPasswordReset(username, "webgoat")))
+                        newLink(username)))
                 .sender("password-reset@webgoat-cloud.net")
                 .recipient(username)
                 .time(LocalDateTime.now())
@@ -98,12 +111,7 @@ public class Assignment7 implements AssignmentEndpoint {
         restTemplate.postForEntity(webWolfMailURL, mail, Object.class);
       }
     }
-    return success(this).feedback("email.send").feedbackArgs(email).build();
-  }
-
-  @GetMapping(value = "/challenge/7/.git", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-  @ResponseBody
-  public ClassPathResource git() {
-    return new ClassPathResource("lessons/challenges/challenge7/git.zip");
+    // Sending a mail is an acknowledgement, not the completion of anything
+    return informationMessage(this).feedback("email.send").feedbackArgs(email).build();
   }
 }
