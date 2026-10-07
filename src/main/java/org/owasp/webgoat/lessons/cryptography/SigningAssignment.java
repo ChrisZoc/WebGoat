@@ -53,6 +53,9 @@ public class SigningAssignment implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(
       HttpServletRequest request, @RequestParam String modulus, @RequestParam String signature) {
+    if (modulus != null) {
+      return failed(this).feedback("crypto-signing.notok").build();
+    }
 
     String tempModulus =
         modulus; /* used to validate the modulus of the public key but might need to be corrected */
