@@ -74,57 +74,52 @@ class ResetLinkAssignmentTest extends LessonTest {
         .isNotNull();
   }
 
-  @Test
-  void forgedHostHeaderDoesNotSolveCreateLink() throws Exception {
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
-                .param("email", TOM_EMAIL)
-                .header(HttpHeaders.HOST, webWolfHost + ":" + webWolfPort))
-        .andExpect(status().isOk())
-        .andExpect(
-            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
-                    "$.lessonCompleted")
-                .value(false));
+  @Autowired private ResetTokenStore tokenStore;
+
+  private static org.springframework.test.web.servlet.ResultMatcher notCompleted() {
+    return org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+            "$.lessonCompleted")
+        .value(false);
   }
 
   @Test
-  void forgedHostHeaderCreatesNoResetLink() throws Exception {
-    ResetLinkAssignment.resetLinks.clear();
+  void forgedHostHeaderGetsGenericAnswerAndNeverSolves() throws Exception {
+    tokenStore.clear();
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
                 .param("email", TOM_EMAIL)
-                .header(HttpHeaders.HOST, webWolfHost + ":" + webWolfPort))
+                .header(HttpHeaders.HOST, webWolfHost + ":" + webWolfPort)
+                .header("X-Forwarded-Host", webWolfHost + ":" + webWolfPort))
         .andExpect(status().isOk())
-        .andExpect(
-            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
-                    "$.lessonCompleted")
-                .value(false))
+        .andExpect(notCompleted())
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
                     "$.feedback")
-                .value(org.hamcrest.Matchers.containsString("Host header")));
-    Assertions.assertThat(ResetLinkAssignment.resetLinks).isEmpty();
+                .value(org.hamcrest.Matchers.containsString("If an account exists")));
+  }
+
+  @Test
+  void resetRequestsAreRateLimited() throws Exception {
+    tokenStore.clear();
+    for (int i = 0; i < ResetTokenStore.MAX_REQUESTS_PER_WINDOW + 3; i++) {
+      mockMvc
+          .perform(
+              MockMvcRequestBuilders.post(
+                      "/PasswordReset/ForgotPassword/create-password-reset-link")
+                  .param("email", "user" + i + "@webgoat.org"))
+          .andExpect(status().isOk())
+          .andExpect(notCompleted());
+    }
+    Assertions.assertThat(tokenStore.size()).isEqualTo(ResetTokenStore.MAX_REQUESTS_PER_WINDOW);
   }
 
   @Test
   void knownLinkShouldReturnPasswordResetPage() throws Exception {
-    // Create a reset link
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
-                .param("email", TOM_EMAIL))
-        .andExpect(status().isOk());
-    Assertions.assertThat(ResetLinkAssignment.resetLinks).isNotEmpty();
-
-    // With a known link you should be
+    String token = tokenStore.issue("test");
     MvcResult mvcResult =
         mockMvc
-            .perform(
-                MockMvcRequestBuilders.get(
-                    "/PasswordReset/reset/reset-password/{link}",
-                    ResetLinkAssignment.resetLinks.keySet().iterator().next()))
+            .perform(MockMvcRequestBuilders.get("/PasswordReset/reset/reset-password/{link}", token))
             .andExpect(status().isOk())
             .andExpect(view().name("lessons/passwordreset/templates/password_reset.html"))
             .andReturn();
@@ -133,27 +128,14 @@ class ResetLinkAssignmentTest extends LessonTest {
         .isNotNull();
   }
 
-  private String tomsLink() {
-    return ResetLinkAssignment.resetLinks.entrySet().stream()
-        .filter(e -> e.getValue().equals("tom"))
-        .map(java.util.Map.Entry::getKey)
-        .findFirst()
-        .orElseThrow();
-  }
-
   @Test
   void interceptedTomLinkCannotBeUsedToTakeOverTomsAccount() throws Exception {
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
-                .param("email", TOM_EMAIL))
-        .andExpect(status().isOk());
+    String tomsToken = tokenStore.issue("tom");
 
-    // even with Tom's link in hand, another user cannot set Tom's password with it
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/PasswordReset/reset/change-password")
-                .param("resetLink", tomsLink())
+                .param("resetLink", tomsToken)
                 .param("password", "123456"))
         .andExpect(status().isOk())
         .andExpect(view().name("lessons/passwordreset/templates/password_link_not_found.html"));
@@ -164,25 +146,12 @@ class ResetLinkAssignmentTest extends LessonTest {
                 .param("email", TOM_EMAIL)
                 .param("password", "123456"))
         .andExpect(status().isOk())
-        .andExpect(
-            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
-                    "$.lessonCompleted")
-                .value(false));
+        .andExpect(notCompleted());
   }
 
   @Test
   void ownLinkCanBeUsedOnceByItsOwner() throws Exception {
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
-                .param("email", "test@webgoat.org"))
-        .andExpect(status().isOk());
-    String link =
-        ResetLinkAssignment.resetLinks.entrySet().stream()
-            .filter(e -> e.getValue().equals("test"))
-            .map(java.util.Map.Entry::getKey)
-            .findFirst()
-            .orElseThrow();
+    String link = tokenStore.issue("test");
 
     mockMvc
         .perform(
