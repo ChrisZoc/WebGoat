@@ -52,13 +52,32 @@ class Assignment7Test extends LessonTest {
             MockMvcRequestBuilders.post(CHALLENGE_PATH)
                 .param("email", "webgoat@webgoat-cloud.net"));
     result.andExpect(status().isOk());
-    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+  }
+
+  @Test
+  @DisplayName("Malformed e-mail gets a normal answer")
+  void malformedEmailTest() throws Exception {
+    mockMvc
+        .perform(MockMvcRequestBuilders.post(CHALLENGE_PATH).param("email", "no-at-sign"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+  }
+
+  @Test
+  @DisplayName("Previously static admin link no longer reveals the flag")
+  void staticAdminLinkTest() throws Exception {
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/375afe1104f4a487a73823c50a9292a2"))
+        .andExpect(status().isOk())
+        .andExpect(content().string("That is not the reset link for admin"));
   }
 
   @Test
   @DisplayName("git test")
   void gitTest() throws Exception {
     ResultActions result = mockMvc.perform(MockMvcRequestBuilders.get(GIT_PATH));
-    result.andExpect(content().contentType("application/zip"));
+    result.andExpect(status().isForbidden());
   }
 }
