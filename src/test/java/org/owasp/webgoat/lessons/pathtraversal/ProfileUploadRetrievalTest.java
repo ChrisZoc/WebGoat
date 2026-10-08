@@ -6,6 +6,7 @@ package org.owasp.webgoat.lessons.pathtraversal;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -14,7 +15,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.io.File;
 import java.net.URI;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,15 +33,7 @@ class ProfileUploadRetrievalTest extends LessonTest {
   }
 
   @Test
-  void solve() throws Exception {
-    // Look at the response
-    mockMvc
-        .perform(get("/PathTraversal/random-picture"))
-        .andExpect(status().is(200))
-        .andExpect(header().exists("Location"))
-        .andExpect(header().string("Location", containsString("?id=")))
-        .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_JPEG));
-
+  void traversalIsRefusedAndPredictableAnswerIsNotAccepted() throws Exception {
     // Encoded traversal sequences are decoded before validation and refused
     var uri = new URI("/PathTraversal/random-picture?id=%2E%2E%2F%2E%2E%2F");
     mockMvc
@@ -55,12 +47,23 @@ class ProfileUploadRetrievalTest extends LessonTest {
         .andExpect(status().is(200))
         .andExpect(content().string("Illegal characters are not allowed in the query params"));
 
-    // Post flag
+    uri = new URI("/PathTraversal/random-picture?id=..%252F..%252Fpath-traversal-secret");
+    mockMvc
+        .perform(get(uri))
+        .andExpect(status().is(200))
+        .andExpect(content().string(not(containsString("You found it"))));
+
+    // The answer is no longer derivable from the username: the SHA-512 of it is refused
     mockMvc
         .perform(post("/PathTraversal/random").param("secret", Sha512DigestUtils.shaHex("test")))
         .andExpect(status().is(200))
         .andExpect(jsonPath("$.assignment", equalTo("ProfileUploadRetrieval")))
-        .andExpect(jsonPath("$.lessonCompleted", is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", is(false)));
+
+    mockMvc
+        .perform(post("/PathTraversal/random"))
+        .andExpect(status().is(200))
+        .andExpect(jsonPath("$.lessonCompleted", is(false)));
   }
 
   @Test
@@ -69,14 +72,15 @@ class ProfileUploadRetrievalTest extends LessonTest {
         .perform(get("/PathTraversal/random-picture"))
         .andExpect(status().is(200))
         .andExpect(header().exists("Location"))
+        .andExpect(header().string("Location", containsString("?id=")))
         .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_JPEG));
   }
 
   @Test
-  void unknownFileShouldGiveDirectoryContents() throws Exception {
+  void unknownFileDoesNotDiscloseDirectoryContents() throws Exception {
     mockMvc
         .perform(get("/PathTraversal/random-picture?id=99"))
-        .andExpect(status().is(404))
-        .andExpect(content().string(containsString("cats" + File.separator + "8.jpg")));
+        .andExpect(status().is(200))
+        .andExpect(content().string("Picture not found"));
   }
 }

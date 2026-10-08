@@ -15,23 +15,23 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomUtils;
-import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.token.Sha512DigestUtils;
 import org.springframework.util.FileCopyUtils;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -51,6 +51,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProfileUploadRetrieval implements AssignmentEndpoint {
   private static final Pattern VALID_PICTURE_ID = Pattern.compile("[0-9]{1,3}");
   private final File catPicturesDirectory;
+  private final String secretCode = randomCode();
+
+  private static String randomCode() {
+    byte[] bytes = new byte[32];
+    new SecureRandom().nextBytes(bytes);
+    return HexFormat.of().formatHex(bytes);
+  }
 
   public ProfileUploadRetrieval(@Value("${webgoat.server.directory}") String webGoatHomeDirectory) {
     this.catPicturesDirectory = new File(webGoatHomeDirectory, "/PathTraversal/" + "/cats");
@@ -72,7 +79,7 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
     try {
       Files.writeString(
           secretDirectory.toPath().resolve("path-traversal-secret.jpg"),
-          "You found it submit the SHA-512 hash of your username as answer");
+          "You found it submit the following code as answer: " + secretCode);
     } catch (IOException e) {
       log.error("Unable to write secret in: {}", secretDirectory, e);
     }
@@ -80,10 +87,13 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
 
   @PostMapping("/PathTraversal/random")
   @ResponseBody
-  public AttackResult execute(
-      @RequestParam(value = "secret", required = false) String secret,
-      @CurrentUsername String username) {
-    if (Sha512DigestUtils.shaHex(username).equalsIgnoreCase(secret)) {
+  public AttackResult execute(@RequestParam(value = "secret", required = false) String secret) {
+    // The answer used to be the SHA-512 hash of the username, which anyone can compute without
+    // reading the secret file. It is now a random code that only exists inside that file.
+    if (secret != null
+        && MessageDigest.isEqual(
+            secretCode.getBytes(StandardCharsets.UTF_8),
+            secret.trim().getBytes(StandardCharsets.UTF_8))) {
       return success(this).build();
     }
     return failed(this).build();
@@ -112,15 +122,12 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
             .location(new URI("/PathTraversal/random-picture?id=" + catPicture.getName()))
             .body(Base64.getEncoder().encode(FileCopyUtils.copyToByteArray(catPicture)));
       }
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .location(new URI("/PathTraversal/random-picture?id=" + catPicture.getName()))
-          .body(
-              StringUtils.arrayToCommaDelimitedString(catPicture.getParentFile().listFiles())
-                  .getBytes());
+      // never disclose the server-side directory listing for unknown pictures
+      return ResponseEntity.ok("Picture not found");
     } catch (IOException | URISyntaxException e) {
       log.error("Image not found", e);
     }
 
-    return ResponseEntity.badRequest().build();
+    return ResponseEntity.ok("Picture not found");
   }
 }
