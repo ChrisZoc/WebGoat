@@ -34,14 +34,18 @@ public class CSRFFeedbackTest extends LessonTest {
         .perform(
             post("/csrf/feedback/message")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("host", "localhost:8080")
+                .header("referer", "http://localhost:8080/WebGoat/start.mvc")
                 .content(
                     "{\"name\": \"Test\", \"email\": \"test1233@dfssdf.de\", \"subject\":"
                         + " \"service\", \"message\":\"dsaffd\"}"))
-        .andExpect(status().isOk());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("lessonCompleted", is(false)))
+        .andExpect(jsonPath("feedback", StringContains.containsString("received")));
   }
 
   @Test
-  public void csrfAttack() throws Exception {
+  public void csrfAttackIsRefused() throws Exception {
     mockMvc
         .perform(
             post("/csrf/feedback/message")
@@ -52,7 +56,29 @@ public class CSRFFeedbackTest extends LessonTest {
                 .content(
                     "{\"name\": \"Test\", \"email\": \"test1233@dfssdf.de\", \"subject\":"
                         + " \"service\", \"message\":\"dsaffd\"}"))
-        .andExpect(jsonPath("lessonCompleted", is(true)))
-        .andExpect(jsonPath("feedback", StringContains.containsString("the flag is: ")));
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("lessonCompleted", is(false)))
+        .andExpect(jsonPath("feedback", StringContains.containsString("refused")));
+  }
+
+  @Test
+  public void crossSiteJsonIsRefused() throws Exception {
+    mockMvc
+        .perform(
+            post("/csrf/feedback/message")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("host", "localhost:8080")
+                .header("origin", "http://localhost:9090")
+                .content("{\"name\": \"Test\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("lessonCompleted", is(false)));
+  }
+
+  @Test
+  public void confirmingFlagThatWasNeverIssuedFails() throws Exception {
+    mockMvc
+        .perform(post("/csrf/feedback").param("confirmFlagVal", "null"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("lessonCompleted", is(false)));
   }
 }
