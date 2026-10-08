@@ -16,6 +16,11 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
+ * Checkout with a coupon code. The code is validated against the server-side coupon catalogue
+ * ({@link ShopEndpoint#findCoupon(String)}); the order is only free when a valid coupon grants a
+ * 100% discount. The former hard-coded "get_it_for_free" code, which was leaked to every client by
+ * the coupon endpoints, no longer exists.
+ *
  * @author nbaars
  * @since 4/6/17.
  */
@@ -26,12 +31,13 @@ import org.springframework.web.bind.annotation.RestController;
   "client.side.filtering.free.hint3"
 })
 public class ClientSideFilteringFreeAssignment implements AssignmentEndpoint {
-  public static final String SUPER_COUPON_CODE = "get_it_for_free";
 
   @PostMapping("/clientSideFiltering/getItForFree")
   @ResponseBody
-  public AttackResult completed(@RequestParam String checkoutCode) {
-    if (SUPER_COUPON_CODE.equals(checkoutCode)) {
+  public AttackResult completed(@RequestParam(required = false) String checkoutCode) {
+    boolean free =
+        ShopEndpoint.findCoupon(checkoutCode).map(c -> c.getDiscount() >= 100).orElse(false);
+    if (free) {
       return success(this).build();
     }
     return failed(this).build();

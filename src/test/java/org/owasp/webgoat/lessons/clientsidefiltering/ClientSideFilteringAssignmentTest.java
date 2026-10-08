@@ -4,8 +4,8 @@
  */
 package org.owasp.webgoat.lessons.clientsidefiltering;
 
-import static org.owasp.webgoat.lessons.clientsidefiltering.ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,12 +26,23 @@ public class ClientSideFilteringAssignmentTest extends LessonTest {
   }
 
   @Test
-  public void success() throws Exception {
+  public void leakedFreeCouponIsNoLongerAccepted() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/clientSideFiltering/getItForFree")
-                .param("checkoutCode", SUPER_COUPON_CODE))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+                .param("checkoutCode", "get_it_for_free"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+  }
+
+  @Test
+  public void publicCouponDoesNotMakeItFree() throws Exception {
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/clientSideFiltering/getItForFree")
+                .param("checkoutCode", "owasp-webgoat"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test

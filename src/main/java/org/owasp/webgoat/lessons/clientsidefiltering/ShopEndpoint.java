@@ -4,7 +4,6 @@
  */
 package org.owasp.webgoat.lessons.clientsidefiltering;
 
-import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
@@ -16,6 +15,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
+ * Coupon lookup for the shop. The coupon catalogue lives on the server only: it used to contain an
+ * internal 100% "get it for free" code that was sent to every client by the coupon listing and the
+ * lookup endpoint. There is no such customer-facing code anymore; only the public promotion codes
+ * exist, and the checkout validates codes against this server-side catalogue.
+ *
  * @author nbaars
  * @since 4/6/17.
  */
@@ -24,45 +28,40 @@ import org.springframework.web.bind.annotation.RestController;
 public class ShopEndpoint {
 
   @AllArgsConstructor
-  private class CheckoutCodes {
+  private static class CheckoutCodes {
 
     @Getter private List<CheckoutCode> codes;
-
-    public Optional<CheckoutCode> get(String code) {
-      return codes.stream().filter(c -> c.getCode().equals(code)).findFirst();
-    }
   }
 
   @AllArgsConstructor
   @Getter
-  private class CheckoutCode {
+  static class CheckoutCode {
     private String code;
     private int discount;
   }
 
-  private CheckoutCodes checkoutCodes;
+  /** Public promotion codes; none of them makes the product free. */
+  private static final List<CheckoutCode> PUBLIC_CODES =
+      List.of(
+          new CheckoutCode("webgoat", 25),
+          new CheckoutCode("owasp", 25),
+          new CheckoutCode("owasp-webgoat", 50));
 
-  public ShopEndpoint() {
-    List<CheckoutCode> codes = Lists.newArrayList();
-    codes.add(new CheckoutCode("webgoat", 25));
-    codes.add(new CheckoutCode("owasp", 25));
-    codes.add(new CheckoutCode("owasp-webgoat", 50));
-    this.checkoutCodes = new CheckoutCodes(codes);
+  /** Server-side lookup of a coupon; unknown codes have no discount. */
+  static Optional<CheckoutCode> findCoupon(String code) {
+    if (code == null) {
+      return Optional.empty();
+    }
+    return PUBLIC_CODES.stream().filter(c -> c.getCode().equals(code)).findFirst();
   }
 
   @GetMapping(value = "/coupons/{code}", produces = MediaType.APPLICATION_JSON_VALUE)
   public CheckoutCode getDiscountCode(@PathVariable String code) {
-    if (ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE.equals(code)) {
-      return new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100);
-    }
-    return checkoutCodes.get(code).orElse(new CheckoutCode("no", 0));
+    return findCoupon(code).orElse(new CheckoutCode("no", 0));
   }
 
   @GetMapping(value = "/coupons", produces = MediaType.APPLICATION_JSON_VALUE)
   public CheckoutCodes all() {
-    List<CheckoutCode> all = Lists.newArrayList();
-    all.addAll(this.checkoutCodes.getCodes());
-    all.add(new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100));
-    return new CheckoutCodes(all);
+    return new CheckoutCodes(PUBLIC_CODES);
   }
 }
