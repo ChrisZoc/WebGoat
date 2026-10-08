@@ -7,6 +7,8 @@ package org.owasp.webgoat.lessons.xss;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -37,10 +39,18 @@ public class DOMCrossSiteScriptingVerifier implements AssignmentEndpoint {
 
   @PostMapping("/CrossSiteScripting/dom-follow-up")
   @ResponseBody
-  public AttackResult completed(@RequestParam String successMessage) {
-    String answer = (String) lessonSession.getValue("randValue");
+  public AttackResult completed(@RequestParam(required = false) String successMessage) {
+    // The expected value used to be whatever the phone-home endpoint handed to any caller that
+    // sent a spoofable header. Only a value the server actually issued and kept secret counts, it
+    // is single use, and it is compared in constant time.
+    Object issued = lessonSession.getValue(DOMCrossSiteScripting.SECRET_KEY);
+    lessonSession.setValue(DOMCrossSiteScripting.SECRET_KEY, null);
 
-    if (successMessage.equals(answer)) {
+    if (issued instanceof String answer
+        && successMessage != null
+        && MessageDigest.isEqual(
+            answer.getBytes(StandardCharsets.UTF_8),
+            successMessage.getBytes(StandardCharsets.UTF_8))) {
       return success(this).feedback("xss-dom-message-success").build();
     } else {
       return failed(this).feedback("xss-dom-message-failure").build();
