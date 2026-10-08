@@ -4,9 +4,8 @@
  */
 package org.owasp.webgoat.lessons.passwordreset;
 
-import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -80,15 +79,15 @@ public class SecurityQuestionAssignment implements AssignmentEndpoint {
   @PostMapping("/PasswordReset/SecurityQuestions")
   @ResponseBody
   public AttackResult completed(@RequestParam String question) {
-    var answer = of(questions.get(question));
+    var answer = ofNullable(questions.get(question));
     if (answer.isPresent()) {
       triedQuestions.incr(question);
-      if (triedQuestions.isComplete()) {
-        return success(this).output("<b>" + answer + "</b>").build();
-      }
     }
+    // Every question on offer has a guessable, researchable or forgettable answer: none of them is
+    // acceptable as a password reset factor, so choosing questions never completes the assignment.
     return informationMessage(this)
-        .feedback("password-questions-one-successful")
+        .feedback(
+            answer.isPresent() ? "password-questions-weak" : "password-questions-unknown-question")
         .output(answer.orElse("Unknown question, please try again..."))
         .build();
   }

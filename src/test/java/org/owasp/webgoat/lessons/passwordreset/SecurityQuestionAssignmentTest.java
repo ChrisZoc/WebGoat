@@ -34,14 +34,13 @@ public class SecurityQuestionAssignmentTest extends LessonTest {
         .andExpect(status().isOk())
         .andExpect(
             jsonPath(
-                "$.feedback",
-                CoreMatchers.is(messages.getMessage("password-questions-one-successful"))))
+                "$.feedback", CoreMatchers.is(messages.getMessage("password-questions-weak"))))
         .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)))
         .andExpect(jsonPath("$.output", CoreMatchers.notNullValue()));
   }
 
   @Test
-  public void twoQuestionsShouldSolveTheAssignment() throws Exception {
+  public void twoWeakQuestionsShouldNotSolveTheAssignment() throws Exception {
     MockHttpSession mocksession = new MockHttpSession();
     mockMvc
         .perform(
@@ -54,58 +53,22 @@ public class SecurityQuestionAssignmentTest extends LessonTest {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/PasswordReset/SecurityQuestions")
-                .param("question", "In what year was your mother born?")
+                .param("question", "What is your favorite color?")
                 .session(mocksession))
         .andExpect(status().isOk())
-        .andExpect(
-            jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("assignment.solved"))))
-        .andExpect(jsonPath("$.output", CoreMatchers.notNullValue()))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
-  }
-
-  @Test
-  public void answeringSameQuestionTwiceShouldNotSolveAssignment() throws Exception {
-    MockHttpSession mocksession = new MockHttpSession();
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/PasswordReset/SecurityQuestions")
-                .param("question", "What is your favorite animal?")
-                .session(mocksession))
-        .andExpect(status().isOk());
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/PasswordReset/SecurityQuestions")
-                .param("question", "What is your favorite animal?")
-                .session(mocksession))
-        .andExpect(status().isOk())
-        .andExpect(
-            jsonPath(
-                "$.feedback",
-                CoreMatchers.is(messages.getMessage("password-questions-one-successful"))))
         .andExpect(jsonPath("$.output", CoreMatchers.notNullValue()))
         .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test
-  public void solvingForOneUserDoesNotSolveForOtherUser() throws Exception {
-    MockHttpSession mocksession = new MockHttpSession();
-    mockMvc.perform(
-        MockMvcRequestBuilders.post("/PasswordReset/SecurityQuestions")
-            .param("question", "What is your favorite animal?")
-            .session(mocksession));
+  public void unknownQuestionGetsNormalAnswer() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/PasswordReset/SecurityQuestions")
-                .param("question", "In what year was your mother born?")
-                .session(mocksession))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
-
-    MockHttpSession mocksession2 = new MockHttpSession();
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/PasswordReset/SecurityQuestions")
-                .param("question", "What is your favorite animal?")
-                .session(mocksession2))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+                .param("question", "What is the airspeed velocity of an unladen swallow?"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)))
+        .andExpect(
+            jsonPath("$.output", CoreMatchers.is("Unknown question, please try again...")));
   }
 }
