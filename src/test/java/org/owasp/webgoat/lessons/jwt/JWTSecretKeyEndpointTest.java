@@ -4,14 +4,18 @@
  */
 package org.owasp.webgoat.lessons.jwt;
 
+import static io.jsonwebtoken.SignatureAlgorithm.HS256;
 import static io.jsonwebtoken.SignatureAlgorithm.HS512;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.owasp.webgoat.lessons.jwt.JWTSecretKeyEndpoint.JWT_SECRET;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.impl.TextCodec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -117,6 +121,54 @@ public class JWTSecretKeyEndpointTest extends LessonTest {
     mockMvc
         .perform(MockMvcRequestBuilders.post("/JWT/secret").param("token", token))
         .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("jwt-invalid-token"))));
+  }
+
+  @Test
+  void tokenForgedWithDictionaryWordIsRejected() throws Exception {
+    for (String word : JWTSecretKeyEndpoint.SECRETS) {
+      Claims claims = createClaims("WebGoat");
+      String token =
+          Jwts.builder()
+              .setClaims(claims)
+              .signWith(HS256, TextCodec.BASE64.encode(word))
+              .compact();
+
+      mockMvc
+          .perform(MockMvcRequestBuilders.post("/JWT/secret").param("token", token))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.lessonCompleted", is(false)));
+    }
+  }
+
+  @Test
+  void keyCrackedFromSampleTokenCannotForgeAcceptedToken() throws Exception {
+    String sample =
+        mockMvc
+            .perform(MockMvcRequestBuilders.get("/JWT/secret/gettoken"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    String cracked = null;
+    for (String word : JWTSecretKeyEndpoint.SECRETS) {
+      try {
+        Jwts.parser().setSigningKey(TextCodec.BASE64.encode(word)).parseClaimsJws(sample);
+        cracked = TextCodec.BASE64.encode(word);
+      } catch (JwtException e) {
+        // not this word
+      }
+    }
+    assertThat(cracked).isNotNull();
+
+    String forged =
+        Jwts.builder().setClaims(createClaims("WebGoat")).signWith(HS256, cracked).compact();
+    mockMvc
+        .perform(MockMvcRequestBuilders.post("/JWT/secret").param("token", forged))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", is(false)))
         .andExpect(
             jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("jwt-invalid-token"))));
   }
