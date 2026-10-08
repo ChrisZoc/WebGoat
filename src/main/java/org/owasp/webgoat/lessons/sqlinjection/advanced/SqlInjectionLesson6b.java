@@ -7,11 +7,11 @@ package org.owasp.webgoat.lessons.sqlinjection.advanced;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Slf4j
 public class SqlInjectionLesson6b implements AssignmentEndpoint {
   private final LessonDataSource dataSource;
 
@@ -30,35 +31,34 @@ public class SqlInjectionLesson6b implements AssignmentEndpoint {
 
   @PostMapping("/SqlInjectionAdvanced/attack6b")
   @ResponseBody
-  public AttackResult completed(@RequestParam String userid_6b) throws IOException {
-    if (userid_6b.equals(getPassword())) {
+  public AttackResult completed(@RequestParam String userid_6b) {
+    String password = getPassword();
+    // no fallback value: if the password cannot be read nothing matches
+    if (password != null
+        && MessageDigest.isEqual(
+            password.getBytes(StandardCharsets.UTF_8),
+            userid_6b.getBytes(StandardCharsets.UTF_8))) {
       return success(this).build();
-    } else {
-      return failed(this).build();
     }
+    return failed(this).build();
   }
 
+  /**
+   * Dave's password is random per lesson schema (see migration V2026_10_08_42), so the well-known
+   * value from the original data set no longer passes.
+   */
   protected String getPassword() {
-    String password = "dave";
-    try (Connection connection = dataSource.getConnection()) {
-      String query = "SELECT password FROM user_system_data WHERE user_name = 'dave'";
-      try {
-        Statement statement =
-            connection.createStatement(
-                ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
-        ResultSet results = statement.executeQuery(query);
-
-        if (results != null && results.first()) {
-          password = results.getString("password");
-        }
-      } catch (SQLException sqle) {
-        sqle.printStackTrace();
-        // do nothing
+    try (Connection connection = dataSource.getConnection();
+        var statement =
+            connection.prepareStatement(
+                "SELECT password FROM user_system_data WHERE user_name = ?")) {
+      statement.setString(1, "dave");
+      try (var results = statement.executeQuery()) {
+        return results.next() ? results.getString("password") : null;
       }
-    } catch (Exception e) {
-      e.printStackTrace();
-      // do nothing
+    } catch (SQLException e) {
+      log.error("Unable to read the password", e);
+      return null;
     }
-    return (password);
   }
 }
