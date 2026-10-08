@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.idor;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -32,30 +31,13 @@ public class IDORViewOwnProfileAltUrl implements AssignmentEndpoint {
   @PostMapping("/IDOR/profile/alt-path")
   @ResponseBody
   public AttackResult completed(@RequestParam String url) {
-    try {
-      if (userSessionData.getValue("idor-authenticated-as").equals("tom")) {
-        // going to use session auth to view this one
-        String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
-        // don't care about http://localhost:8080 ... just want WebGoat/
-        String[] urlParts = url.split("/");
-        if (urlParts[0].equals("WebGoat")
-            && urlParts[1].equals("IDOR")
-            && urlParts[2].equals("profile")
-            && urlParts[3].equals(authUserId)) {
-          UserProfile userProfile = new UserProfile(authUserId);
-          return success(this)
-              .feedback("idor.view.own.profile.success")
-              .output(userProfile.profileToMap().toString())
-              .build();
-        } else {
-          return failed(this).feedback("idor.view.own.profile.failure1").build();
-        }
-
-      } else {
-        return failed(this).feedback("idor.view.own.profile.failure2").build();
-      }
-    } catch (Exception ex) {
-      return failed(this).output("an error occurred with your request").build();
+    if (!"tom".equals(userSessionData.getValue("idor-authenticated-as"))) {
+      return failed(this).feedback("idor.view.own.profile.failure2").build();
     }
+    // The profile is resolved from the authenticated session only (see /IDOR/profile). A
+    // client-supplied object reference (WebGoat/IDOR/profile/{id}) is never used to look up and
+    // return profile data: that alternate path is exactly the direct object reference an attacker
+    // would iterate over to reach other users' profiles.
+    return failed(this).feedback("idor.view.own.profile.no.direct.reference").build();
   }
 }
