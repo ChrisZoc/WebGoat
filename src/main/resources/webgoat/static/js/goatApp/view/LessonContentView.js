@@ -213,7 +213,8 @@ define(['jquery',
 
             /* for testing */
             showTestParam: function (param) {
-                this.$el.find('.lesson-content').html('test:' + param);
+                // render the route parameter as text, never as HTML (DOM XSS sink)
+                this.$el.find('.lesson-content').text('test:' + param);
             },
 
             resetLesson: function () {
