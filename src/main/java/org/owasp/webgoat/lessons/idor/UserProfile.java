@@ -4,7 +4,7 @@
  */
 package org.owasp.webgoat.lessons.idor;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Created by jason on 1/5/17. */
@@ -44,13 +44,17 @@ public class UserProfile {
     }
   }
 
+  /**
+   * The profile as it is sent to the client. Only the attributes the user is meant to see are
+   * included (the user's own id is needed to address the profile); internal authorization data
+   * such as the role or the admin flag never leaves the server (excessive data exposure).
+   */
   public Map<String, Object> profileToMap() {
-    Map<String, Object> profileMap = new HashMap<>();
+    Map<String, Object> profileMap = new LinkedHashMap<>();
     profileMap.put("userId", this.userId);
     profileMap.put("name", this.name);
     profileMap.put("color", this.color);
     profileMap.put("size", this.size);
-    profileMap.put("role", this.role);
     return profileMap;
   }
 
@@ -63,13 +67,7 @@ public class UserProfile {
         + this.name
         + htmlBreak
         + "size"
-        + this.size
-        + htmlBreak
-        + "role"
-        + this.role
-        + htmlBreak
-        + "isAdmin"
-        + this.isAdmin;
+        + this.size;
   }
 
   //

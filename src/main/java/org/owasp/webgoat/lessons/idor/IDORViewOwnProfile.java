@@ -4,7 +4,7 @@
  */
 package org.owasp.webgoat.lessons.idor;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.container.session.LessonSession;
@@ -27,17 +27,13 @@ public class IDORViewOwnProfile {
       produces = {"application/json"})
   @ResponseBody
   public Map<String, Object> invoke() {
-    Map<String, Object> details = new HashMap<>();
+    Map<String, Object> details = new LinkedHashMap<>();
     try {
-      if (userSessionData.getValue("idor-authenticated-as").equals("tom")) {
+      if ("tom".equals(userSessionData.getValue("idor-authenticated-as"))) {
         // going to use session auth to view this one
         String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
-        UserProfile userProfile = new UserProfile(authUserId);
-        details.put("userId", userProfile.getUserId());
-        details.put("name", userProfile.getName());
-        details.put("color", userProfile.getColor());
-        details.put("size", userProfile.getSize());
-        details.put("role", userProfile.getRole());
+        // only the client-facing attributes; the role stays on the server
+        details.putAll(new UserProfile(authUserId).profileToMap());
       } else {
         details.put(
             "error",

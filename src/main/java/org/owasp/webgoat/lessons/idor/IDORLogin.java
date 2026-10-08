@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @AssignmentHints({"idor.hints.idor_login"})
 public class IDORLogin implements AssignmentEndpoint {
+  static final String TOM_USER_ID = "2342384";
+
   private final LessonSession lessonSession;
 
   public IDORLogin(LessonSession lessonSession) {
@@ -33,7 +35,7 @@ public class IDORLogin implements AssignmentEndpoint {
 
     idorUserInfo.put("tom", new HashMap<String, String>());
     idorUserInfo.get("tom").put("password", "cat");
-    idorUserInfo.get("tom").put("id", "2342384");
+    idorUserInfo.get("tom").put("id", TOM_USER_ID);
     idorUserInfo.get("tom").put("color", "yellow");
     idorUserInfo.get("tom").put("size", "small");
 
