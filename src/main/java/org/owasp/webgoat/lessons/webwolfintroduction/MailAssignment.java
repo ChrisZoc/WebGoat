@@ -8,7 +8,6 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -19,6 +18,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.HtmlUtils;
 
 /**
  * @author nbaars
@@ -28,19 +28,24 @@ import org.springframework.web.client.RestTemplate;
 public class MailAssignment implements AssignmentEndpoint {
 
   private final String webWolfURL;
-  private RestTemplate restTemplate;
+  private final RestTemplate restTemplate;
+  private final UniqueCodes uniqueCodes;
 
   public MailAssignment(
-      RestTemplate restTemplate, @Value("${webwolf.mail.url}") String webWolfURL) {
+      RestTemplate restTemplate,
+      @Value("${webwolf.mail.url}") String webWolfURL,
+      UniqueCodes uniqueCodes) {
     this.restTemplate = restTemplate;
     this.webWolfURL = webWolfURL;
+    this.uniqueCodes = uniqueCodes;
   }
 
   @PostMapping("/WebWolf/mail/send")
   @ResponseBody
   public AttackResult sendEmail(
       @RequestParam String email, @CurrentUsername String webGoatUsername) {
-    String username = email.substring(0, email.indexOf("@"));
+    int at = email.indexOf('@');
+    String username = at == -1 ? email : email.substring(0, at);
     if (username.equalsIgnoreCase(webGoatUsername)) {
       Email mailEvent =
           Email.builder()
@@ -48,7 +53,8 @@ public class MailAssignment implements AssignmentEndpoint {
               .title("Test messages from WebWolf")
               .contents(
                   "This is a test message from WebWolf, your unique code is: "
-                      + StringUtils.reverse(username))
+                      // random secret, only known from this e-mail (no longer the reversed name)
+                      + uniqueCodes.codeFor(webGoatUsername))
               .sender("webgoat@owasp.org")
               .build();
       try {
@@ -71,10 +77,13 @@ public class MailAssignment implements AssignmentEndpoint {
   @PostMapping("/WebWolf/mail")
   @ResponseBody
   public AttackResult completed(@RequestParam String uniqueCode, @CurrentUsername String username) {
-    if (uniqueCode.equals(StringUtils.reverse(username))) {
+    if (uniqueCodes.matches(username, uniqueCode)) {
       return success(this).build();
     } else {
-      return failed(this).feedbackArgs("webwolf.code_incorrect").feedbackArgs(uniqueCode).build();
+      return failed(this)
+          .feedback("webwolf.code_incorrect")
+          .feedbackArgs(HtmlUtils.htmlEscape(uniqueCode))
+          .build();
     }
   }
 }
