@@ -12,16 +12,16 @@ import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.Jwt;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.SignatureException;
 import io.jsonwebtoken.SigningKeyResolverAdapter;
 import io.jsonwebtoken.impl.TextCodec;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
-import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
+import org.owasp.webgoat.lessons.jwt.JwtSecrets;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,11 +40,17 @@ import org.springframework.web.bind.annotation.RestController;
 })
 @RequestMapping("/JWT/")
 public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
-  private final LessonDataSource dataSource;
 
-  private JWTHeaderKIDEndpoint(LessonDataSource dataSource) {
-    this.dataSource = dataSource;
-  }
+  /**
+   * Signing keys by key id. The kid header is attacker controlled, so it is only ever used as an
+   * exact lookup key into this fixed, server-side map: it never reaches a SQL query, a file path or
+   * any other interpreter. The key material is random per server start; the static keys in the
+   * lesson's jwt_keys table (published in the source) are no longer trusted.
+   */
+  private static final Map<String, String> SIGNING_KEYS =
+      Map.of(
+          "webgoat_key", JwtSecrets.randomBase64Key(),
+          "webwolf_key", JwtSecrets.randomBase64Key());
 
   @PostMapping("kid/follow/{user}")
   public @ResponseBody String follow(@PathVariable("user") String user) {
@@ -61,35 +67,25 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
       return failed(this).feedback("jwt-invalid-token").build();
     } else {
       try {
-        final String[] errorMessage = {null};
         Jwt jwt =
             Jwts.parser()
                 .setSigningKeyResolver(
                     new SigningKeyResolverAdapter() {
                       @Override
                       public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
-                        final String kid = (String) header.get("kid");
-                        try (var connection = dataSource.getConnection();
-                            var statement =
-                                connection.prepareStatement(
-                                    "SELECT key FROM jwt_keys WHERE id = ?")) {
-                          // the kid header is attacker controlled: bind it, never concatenate it
-                          statement.setString(1, kid);
-                          try (ResultSet rs = statement.executeQuery()) {
-                            if (rs.next()) {
-                              return TextCodec.BASE64.decode(rs.getString(1));
-                            }
-                          }
-                        } catch (SQLException e) {
-                          errorMessage[0] = "Unable to look up the signing key";
+                        SignatureAlgorithm alg =
+                            SignatureAlgorithm.forName(header.getAlgorithm());
+                        if (!alg.isHmac()) {
+                          throw new SignatureException("Unsupported signing algorithm");
                         }
-                        throw new SignatureException("Unknown signing key");
+                        String key = SIGNING_KEYS.get(String.valueOf(header.getKeyId()));
+                        if (key == null) {
+                          throw new SignatureException("Unknown signing key");
+                        }
+                        return TextCodec.BASE64.decode(key);
                       }
                     })
                 .parseClaimsJws(token);
-        if (errorMessage[0] != null) {
-          return failed(this).output(errorMessage[0]).build();
-        }
         Claims claims = (Claims) jwt.getBody();
         String username = (String) claims.get("username");
         if ("Jerry".equals(username)) {
