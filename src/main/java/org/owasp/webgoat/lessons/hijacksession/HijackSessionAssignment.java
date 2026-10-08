@@ -73,6 +73,8 @@ public class HijackSessionAssignment implements AssignmentEndpoint {
     Cookie cookie = new Cookie(COOKIE_NAME, cookieValue);
     cookie.setPath("/WebGoat");
     cookie.setSecure(true);
+    // not readable from scripts, so it cannot be lifted through XSS either
+    cookie.setHttpOnly(true);
     response.addCookie(cookie);
   }
 }

@@ -88,6 +88,39 @@ class HijackSessionAuthenticationProviderTest {
   }
 
   @Test
+  void sessionIdsHaveNoCounterOrTimestamp() {
+    long before = System.currentTimeMillis();
+    var ids =
+        Stream.generate(() -> provider.authenticate(null).getId()).limit(200).distinct().toList();
+    long after = System.currentTimeMillis();
+
+    assertThat(ids.size(), is(200));
+    for (int i = 1; i < ids.size(); i++) {
+      String[] previous = ids.get(i - 1).split("-");
+      String[] current = ids.get(i).split("-");
+      long delta = Long.parseLong(current[0]) - Long.parseLong(previous[0]);
+      // the old scheme was <previous + 1>-<epoch millis>
+      assertThat(delta == 1 || delta == 2, is(false));
+      long secondPart = Long.parseLong(current[1]);
+      assertThat(secondPart >= before && secondPart <= after, is(false));
+    }
+  }
+
+  @Test
+  void guessedNeighbourIdIsNotAuthenticated() {
+    String issued = provider.authenticate(null).getId();
+    long counter = Long.parseLong(issued.split("-")[0]);
+    long now = System.currentTimeMillis();
+
+    for (long ts = now - 50; ts <= now + 50; ts++) {
+      for (long id = counter - 2; id <= counter + 2; id++) {
+        Authentication guess = Authentication.builder().id(id + "-" + ts).build();
+        assertThat(provider.authenticate(guess).isAuthenticated(), is(false));
+      }
+    }
+  }
+
+  @Test
   void testMaxSessions() {
     for (int i = 0; i <= HijackSessionAuthenticationProvider.MAX_SESSIONS + 1; i++) {
       provider.authorizedUserAutoLogin();
