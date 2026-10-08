@@ -10,8 +10,6 @@ import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.container.session.LessonSession;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -41,18 +39,17 @@ public class IDORViewOtherProfile implements AssignmentEndpoint {
       path = "/IDOR/profile/{userId}",
       produces = {"application/json"})
   @ResponseBody
-  public ResponseEntity<AttackResult> completed(@PathVariable("userId") String userId) {
-
-    Object obj = userSessionData.getValue("idor-authenticated-as");
-    if (obj != null && obj.equals("tom")) {
-      String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
-      if (userId != null && !userId.equals(authUserId)) {
-        // horizontal access control: a profile can only be read by its owner
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(failed(this).feedback("idor.profile.access.denied").build());
-      }
-      return ResponseEntity.ok(failed(this).feedback("idor.view.profile.close2").build());
+  public AttackResult completed(@PathVariable("userId") String userId) {
+    if (!"tom".equals(userSessionData.getValue("idor-authenticated-as"))) {
+      return failed(this).feedback("idor.view.other.profile.failure1").build();
     }
-    return ResponseEntity.ok(failed(this).build());
+    String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
+    if (authUserId == null || !authUserId.equals(userId)) {
+      // Horizontal access control: a profile can only be read by its owner. The requested profile
+      // is never loaded, and the refusal is a regular assignment answer (200, not completed) so
+      // the lesson UI keeps working; it carries no profile data.
+      return failed(this).feedback("idor.profile.access.denied").build();
+    }
+    return failed(this).feedback("idor.view.profile.close2").build();
   }
 }
