@@ -13,4 +13,4 @@ There are usually hints to finding functionality the UI does not openly expose i
 
 === Your mission
 
-Find two invisible menu items in the menu below that are or would be of interest to an attacker/malicious user and submit the labels for those menu items (there are no links right now in the menus).
+Look for invisible menu items in the menu below that would be of interest to an attacker/malicious user. In this version the admin entries are no longer sent to non-admin users at all and the admin functions are enforced on the server, which is the fix for relying on obscurity.

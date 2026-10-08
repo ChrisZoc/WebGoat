@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.missingac;
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.Test;
@@ -14,30 +15,36 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 class MissingFunctionACHiddenMenusTest extends LessonTest {
 
   @Test
-  void HiddenMenusSuccess() throws Exception {
+  void adminMenuItemsAreNotExposed() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/access-control/hidden-menu")
                 .param("hiddenMenu1", "Users")
                 .param("hiddenMenu2", "Config"))
+        .andExpect(status().isOk())
         .andExpect(
             jsonPath(
                 "$.feedback",
-                CoreMatchers.is(messages.getMessage("access-control.hidden-menus.success"))))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+                CoreMatchers.is(messages.getMessage("access-control.hidden-menus.not-exposed"))))
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test
-  void HiddenMenusClose() throws Exception {
+  void reversedOrderIsRefusedAsWell() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/access-control/hidden-menu")
                 .param("hiddenMenu1", "Config")
                 .param("hiddenMenu2", "Users"))
-        .andExpect(
-            jsonPath(
-                "$.feedback",
-                CoreMatchers.is(messages.getMessage("access-control.hidden-menus.close"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+  }
+
+  @Test
+  void missingParametersGetARegularAnswer() throws Exception {
+    mockMvc
+        .perform(MockMvcRequestBuilders.post("/access-control/hidden-menu"))
+        .andExpect(status().isOk())
         .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
