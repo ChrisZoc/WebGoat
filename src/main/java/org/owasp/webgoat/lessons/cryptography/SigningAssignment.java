@@ -35,14 +35,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class SigningAssignment implements AssignmentEndpoint {
 
   /**
-   * Only the public half of the session key pair is ever handed out. The private key stays in the
-   * server-side session, so a client can no longer sign arbitrary messages with it.
+   * The private key of the server's trusted signing key pair never leaves the server. What this
+   * endpoint hands out is a separate client key pair generated for the session: the verifier below
+   * only trusts the server key pair, so signatures made with the handed-out key are refused.
    */
   @RequestMapping(path = "/crypto/signing/getprivate", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String getPrivateKey(HttpServletRequest request)
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
-    return CryptoUtil.getPublicKeyInPEM(getOrCreateKeyPair(request));
+    getOrCreateKeyPair(request);
+    String clientKey = (String) request.getSession().getAttribute("clientPrivateKeyString");
+    if (clientKey == null) {
+      clientKey = CryptoUtil.getPrivateKeyInPEM(CryptoUtil.generateKeyPair());
+      request.getSession().setAttribute("clientPrivateKeyString", clientKey);
+    }
+    return clientKey;
   }
 
   private KeyPair getOrCreateKeyPair(HttpServletRequest request)
