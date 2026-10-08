@@ -7,7 +7,10 @@ package org.owasp.webgoat.lessons.idor;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import java.util.HashMap;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Map;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -29,38 +32,40 @@ public class IDORLogin implements AssignmentEndpoint {
     this.lessonSession = lessonSession;
   }
 
-  private final Map<String, Map<String, String>> idorUserInfo = new HashMap<>();
+  private static final SecureRandom RANDOM = new SecureRandom();
 
-  public void initIDORInfo() {
+  /**
+   * The accounts used to be hard-coded with trivial, published passwords ("tom"/"cat",
+   * "bill"/"buffalo"), so anybody could sign in as tom (CWE-798 / CWE-259). Each account now gets
+   * a strong random password when the application starts; it is never written to the lesson
+   * content, the logs or any response.
+   */
+  private final Map<String, IdorAccount> accounts =
+      Map.of(
+          "tom", new IdorAccount(TOM_USER_ID, randomPassword()),
+          "bill", new IdorAccount("2342388", randomPassword()));
 
-    idorUserInfo.put("tom", new HashMap<String, String>());
-    idorUserInfo.get("tom").put("password", "cat");
-    idorUserInfo.get("tom").put("id", TOM_USER_ID);
-    idorUserInfo.get("tom").put("color", "yellow");
-    idorUserInfo.get("tom").put("size", "small");
+  private record IdorAccount(String userId, String password) {}
 
-    idorUserInfo.put("bill", new HashMap<String, String>());
-    idorUserInfo.get("bill").put("password", "buffalo");
-    idorUserInfo.get("bill").put("id", "2342388");
-    idorUserInfo.get("bill").put("color", "brown");
-    idorUserInfo.get("bill").put("size", "large");
+  private static String randomPassword() {
+    byte[] bytes = new byte[24];
+    RANDOM.nextBytes(bytes);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
   }
 
   @PostMapping("/IDOR/login")
   @ResponseBody
   public AttackResult completed(@RequestParam String username, @RequestParam String password) {
-    initIDORInfo();
-
-    if (idorUserInfo.containsKey(username)) {
-      if ("tom".equals(username) && idorUserInfo.get("tom").get("password").equals(password)) {
-        lessonSession.setValue("idor-authenticated-as", username);
-        lessonSession.setValue("idor-authenticated-user-id", idorUserInfo.get(username).get("id"));
-        return success(this).feedback("idor.login.success").feedbackArgs(username).build();
-      } else {
-        return failed(this).feedback("idor.login.failure").build();
-      }
-    } else {
-      return failed(this).feedback("idor.login.failure").build();
+    IdorAccount account = accounts.get(username);
+    if (account != null
+        && "tom".equals(username)
+        && MessageDigest.isEqual(
+            account.password().getBytes(StandardCharsets.UTF_8),
+            password.getBytes(StandardCharsets.UTF_8))) {
+      lessonSession.setValue("idor-authenticated-as", username);
+      lessonSession.setValue("idor-authenticated-user-id", account.userId());
+      return success(this).feedback("idor.login.success").feedbackArgs(username).build();
     }
+    return failed(this).feedback("idor.login.failure").build();
   }
 }

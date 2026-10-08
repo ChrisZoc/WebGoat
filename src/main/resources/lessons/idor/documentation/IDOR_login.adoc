@@ -2,6 +2,6 @@
 
 Many access control issues are susceptible to attack from an authenticated-but-unauthorized user. So, let's start by legitimately authenticating. Then, we will look for ways to bypass or abuse Authorization.
 
-The id and password for the account in this case are 'tom' and 'cat' (It is an insecure app, right?).
+The account 'tom' no longer uses a hard-coded, published password: its password is generated randomly when the application starts and is never disclosed.
 
 After authenticating, proceed to the next screen.
