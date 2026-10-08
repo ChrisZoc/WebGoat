@@ -28,16 +28,25 @@ $(document).ready(function () {
         '</div>' +
         '</li>';
 
+    function escapeHtml(value) {
+        return $('<div/>').text(value === null || value === undefined ? '' : String(value)).html();
+    }
+
+    // per-session anti-CSRF token for the review form
+    $.get('csrf/review/token', function (result) {
+        $('#validateReq').val(result.token);
+    });
+
     getChallenges();
 
     function getChallenges() {
         $("#list").empty();
         $.get('csrf/review', function (result, status) {
             for (var i = 0; i < result.length; i++) {
-                var comment = html.replace('USER', result[i].user);
-                comment = comment.replace('DATETIME', result[i].dateTime);
-                comment = comment.replace('COMMENT', result[i].text);
-                comment = comment.replace('STARS', result[i].stars)
+                var comment = html.replace('USER', function () { return escapeHtml(result[i].user); });
+                comment = comment.replace('DATETIME', function () { return escapeHtml(result[i].dateTime); });
+                comment = comment.replace('COMMENT', function () { return escapeHtml(result[i].text); });
+                comment = comment.replace('STARS', function () { return escapeHtml(result[i].stars); });
                 $("#list").append(comment);
             }
 
