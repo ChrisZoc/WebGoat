@@ -5,7 +5,7 @@
 package org.owasp.webgoat.lessons.passwordreset;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 
 import java.util.UUID;
 import org.owasp.webgoat.container.CurrentUsername;
@@ -60,7 +60,10 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
       }
     }
 
-    return success(this).feedback("email.send").feedbackArgs(email).build();
+    // Requesting a reset link is not an achievement: whatever Host header or e-mail address the
+    // client sends, this endpoint only reports that the e-mail was sent and never marks the
+    // assignment as solved.
+    return informationMessage(this).feedback("email.send").feedbackArgs(email).build();
   }
 
   private void sendMailToUser(String email, String resetLink) {

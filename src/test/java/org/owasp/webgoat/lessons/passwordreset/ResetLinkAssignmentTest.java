@@ -75,6 +75,20 @@ class ResetLinkAssignmentTest extends LessonTest {
   }
 
   @Test
+  void forgedHostHeaderDoesNotSolveCreateLink() throws Exception {
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
+                .param("email", TOM_EMAIL)
+                .header(HttpHeaders.HOST, webWolfHost + ":" + webWolfPort))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                    "$.lessonCompleted")
+                .value(false));
+  }
+
+  @Test
   void knownLinkShouldReturnPasswordResetPage() throws Exception {
     // Create a reset link
     mockMvc
