@@ -11,7 +11,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.actuate.web.exchanges.HttpExchange;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -62,12 +61,10 @@ public class Requests {
     /* do not show certain traces to other users in a classroom setup */
     if (req.getUri().getPath().contains("/files") && !req.getUri().getPath().contains(username)) {
       allowed = false;
-    } else if (req.getUri().getPath().contains("/landing")
-        && req.getUri().getQuery() != null
-        && req.getUri().getQuery().contains("uniqueCode")
-        && !req.getUri().getQuery().contains(StringUtils.reverse(username))) {
-      allowed = false;
     }
+    // Landing page traces carrying a uniqueCode used to be filtered on the reversed username.
+    // The WebWolf introduction codes are now random per-user secrets that are only accepted from
+    // their owner, so the trace no longer needs (and can no longer use) that filter.
 
     return allowed;
   }
