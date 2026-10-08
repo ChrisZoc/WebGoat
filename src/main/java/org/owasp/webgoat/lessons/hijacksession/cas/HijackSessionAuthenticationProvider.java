@@ -30,12 +30,12 @@ public class HijackSessionAuthenticationProvider implements AuthenticationProvid
   protected static final int MAX_SESSIONS = 50;
 
   private static final DoublePredicate PROBABILITY_DOUBLE_PREDICATE = pr -> pr < 0.75;
-  // Both parts of the id are independent 63-bit values from a CSPRNG (126 bits in total). The old
-  // "<counter>-<timestamp>" scheme let an attacker spot the gap left by another user's login in
-  // consecutive ids and brute-force the few milliseconds in between; there is no counter and no
-  // clock component any more, so nothing about one id reveals any other id.
+  // The first part of the id is a 63-bit value from a CSPRNG instead of a sequential counter, so
+  // consecutive ids reveal nothing and the gap left by another user's login can't be spotted; the
+  // second part stays the issue time. Knowing the time narrows nothing down: the random part
+  // alone can't be guessed.
   private static final Supplier<String> GENERATE_SESSION_ID =
-      () -> randomPositiveLong() + "-" + randomPositiveLong();
+      () -> randomPositiveLong() + "-" + System.currentTimeMillis();
 
   private static long randomPositiveLong() {
     return RANDOM.nextLong() & Long.MAX_VALUE;

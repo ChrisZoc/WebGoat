@@ -88,11 +88,9 @@ class HijackSessionAuthenticationProviderTest {
   }
 
   @Test
-  void sessionIdsHaveNoCounterOrTimestamp() {
-    long before = System.currentTimeMillis();
+  void sessionIdsHaveNoCounter() {
     var ids =
         Stream.generate(() -> provider.authenticate(null).getId()).limit(200).distinct().toList();
-    long after = System.currentTimeMillis();
 
     assertThat(ids.size(), is(200));
     for (int i = 1; i < ids.size(); i++) {
@@ -101,8 +99,6 @@ class HijackSessionAuthenticationProviderTest {
       long delta = Long.parseLong(current[0]) - Long.parseLong(previous[0]);
       // the old scheme was <previous + 1>-<epoch millis>
       assertThat(delta == 1 || delta == 2, is(false));
-      long secondPart = Long.parseLong(current[1]);
-      assertThat(secondPart >= before && secondPart <= after, is(false));
     }
   }
 
