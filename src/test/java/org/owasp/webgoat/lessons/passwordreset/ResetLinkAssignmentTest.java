@@ -89,13 +89,32 @@ class ResetLinkAssignmentTest extends LessonTest {
   }
 
   @Test
-  void knownLinkShouldReturnPasswordResetPage() throws Exception {
-    // Create a reset link
+  void forgedHostHeaderCreatesNoResetLink() throws Exception {
+    ResetLinkAssignment.resetLinks.clear();
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
                 .param("email", TOM_EMAIL)
                 .header(HttpHeaders.HOST, webWolfHost + ":" + webWolfPort))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                    "$.lessonCompleted")
+                .value(false))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                    "$.feedback")
+                .value(org.hamcrest.Matchers.containsString("Host header")));
+    Assertions.assertThat(ResetLinkAssignment.resetLinks).isEmpty();
+  }
+
+  @Test
+  void knownLinkShouldReturnPasswordResetPage() throws Exception {
+    // Create a reset link
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
+                .param("email", TOM_EMAIL))
         .andExpect(status().isOk());
     Assertions.assertThat(ResetLinkAssignment.resetLinks).isNotEmpty();
 
@@ -127,8 +146,7 @@ class ResetLinkAssignmentTest extends LessonTest {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
-                .param("email", TOM_EMAIL)
-                .header(HttpHeaders.HOST, webWolfHost + ":" + webWolfPort))
+                .param("email", TOM_EMAIL))
         .andExpect(status().isOk());
 
     // even with Tom's link in hand, another user cannot set Tom's password with it
