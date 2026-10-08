@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.ModelAndView;
 
 /** Created by jason on 1/5/17. */
@@ -30,9 +31,19 @@ public class MissingFunctionACUsers {
 
   private final MissingAccessControlUserRepository userRepository;
 
-  @GetMapping(path = {"access-control/users"})
-  public ModelAndView listUsers() {
+  // Every function that exposes or changes user data checks the role of the current user on the
+  // server; hiding the menu entry in the UI is not access control.
+  private boolean isAdmin(String username) {
+    var currentUser = userRepository.findByUsername(username);
+    return currentUser != null && currentUser.isAdmin();
+  }
 
+  @GetMapping(path = {"access-control/users"})
+  public ModelAndView listUsers(@CurrentUsername String username) {
+
+    if (!isAdmin(username)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
     ModelAndView model = new ModelAndView();
     model.setViewName("list_users");
     List<User> allUsers = userRepository.findAllUsers();
@@ -51,7 +62,10 @@ public class MissingFunctionACUsers {
       path = {"access-control/users"},
       consumes = "application/json")
   @ResponseBody
-  public ResponseEntity<List<DisplayUser>> usersService() {
+  public ResponseEntity<List<DisplayUser>> usersService(@CurrentUsername String username) {
+    if (!isAdmin(username)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
     return ResponseEntity.ok(
         userRepository.findAllUsers().stream()
             .map(user -> new DisplayUser(user, PASSWORD_SALT_SIMPLE))
@@ -63,8 +77,7 @@ public class MissingFunctionACUsers {
       consumes = "application/json")
   @ResponseBody
   public ResponseEntity<List<DisplayUser>> usersFixed(@CurrentUsername String username) {
-    var currentUser = userRepository.findByUsername(username);
-    if (currentUser != null && currentUser.isAdmin()) {
+    if (isAdmin(username)) {
       return ResponseEntity.ok(
           userRepository.findAllUsers().stream()
               .map(user -> new DisplayUser(user, PASSWORD_SALT_ADMIN))
@@ -78,8 +91,13 @@ public class MissingFunctionACUsers {
       consumes = "application/json",
       produces = "application/json")
   @ResponseBody
-  public User addUser(@RequestBody User newUser) {
+  public User addUser(@RequestBody User newUser, @CurrentUsername String username) {
     try {
+      // The admin flag is never taken from the request unless an admin is creating the user:
+      // otherwise anyone could register themselves as an administrator (mass assignment).
+      if (newUser.isAdmin() && !isAdmin(username)) {
+        newUser.setAdmin(false);
+      }
       userRepository.save(newUser);
       return newUser;
     } catch (Exception ex) {

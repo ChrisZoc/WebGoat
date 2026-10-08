@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.HtmlUtils;
 
 @RestController
 public class StoredXssComments implements AssignmentEndpoint {
@@ -75,6 +76,9 @@ public class StoredXssComments implements AssignmentEndpoint {
   public AttackResult createNewComment(
       @RequestBody String commentStr, @CurrentUsername String username) {
     Comment comment = parseJson(commentStr);
+    // comments are stored HTML-encoded, so markup in a comment is rendered as text for every
+    // reader instead of being executed in their browser
+    comment.setText(HtmlUtils.htmlEscape(comment.getText() == null ? "" : comment.getText()));
 
     List<Comment> comments = userComments.getOrDefault(username, new ArrayList<>());
     comment.setDateTime(LocalDateTime.now().format(fmt));

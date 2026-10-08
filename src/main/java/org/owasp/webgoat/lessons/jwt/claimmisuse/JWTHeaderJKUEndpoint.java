@@ -15,6 +15,7 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -37,6 +38,14 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
 
+  /**
+   * Keys are only ever fetched from this trusted issuer. The {@code jku} header is attacker
+   * controlled, so it is compared against an allow-list of complete URLs and never used to
+   * download a key set from anywhere else.
+   */
+  static final Set<String> TRUSTED_JKU_URLS =
+      Set.of("https://cognito-idp.us-east-1.amazonaws.com/webgoat/.well-known/jwks.json");
+
   @PostMapping("jku/follow/{user}")
   public @ResponseBody String follow(@PathVariable("user") String user) {
     if ("Jerry".equals(user)) {
@@ -53,8 +62,11 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
     } else {
       try {
         var decodedJWT = JWT.decode(token);
-        var jku = decodedJWT.getHeaderClaim("jku");
-        var jwkProvider = new JwkProviderBuilder(new URL(jku.asString())).build();
+        var jku = decodedJWT.getHeaderClaim("jku").asString();
+        if (jku == null || !TRUSTED_JKU_URLS.contains(jku)) {
+          return failed(this).feedback("jwt-invalid-token").output("Untrusted jku").build();
+        }
+        var jwkProvider = new JwkProviderBuilder(new URL(jku)).build();
         var jwk = jwkProvider.get(decodedJWT.getKeyId());
         var algorithm = Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey());
         JWT.require(algorithm).build().verify(decodedJWT);
@@ -68,7 +80,11 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
         } else {
           return failed(this).feedback("jwt-final-not-tom").build();
         }
-      } catch (MalformedURLException | JWTVerificationException | JwkException e) {
+      } catch (MalformedURLException
+          | JWTVerificationException
+          | JwkException
+          | IllegalArgumentException
+          | ClassCastException e) {
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
       }
     }

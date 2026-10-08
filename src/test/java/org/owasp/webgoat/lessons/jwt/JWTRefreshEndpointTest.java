@@ -32,7 +32,7 @@ public class JWTRefreshEndpointTest extends LessonTest {
   }
 
   @Test
-  void solveAssignment() throws Exception {
+  void jerrysRefreshTokenCannotRenewTomsSession() throws Exception {
     ObjectMapper objectMapper = new ObjectMapper();
 
     // First login to obtain tokens for Jerry
@@ -49,8 +49,8 @@ public class JWTRefreshEndpointTest extends LessonTest {
         objectMapper.readValue(result.getResponse().getContentAsString(), Map.class);
     String refreshToken = tokens.get("refresh_token");
 
-    // Now create a new refresh token for Tom based on Toms old access token and send the refresh
-    // token of Jerry
+    // Using Jerry's refresh token together with Tom's old access token must not hand out a new
+    // token for Tom: refresh tokens are bound to the user they were issued to
     String accessTokenTom =
         "eyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE1MjYxMzE0MTEsImV4cCI6MTUyNjIxNzgxMSwiYWRtaW4iOiJmYWxzZSIsInVzZXIiOiJUb20ifQ.DCoaq9zQkyDH25EcVWKcdbyVfUL4c9D4jRvsqOqvi9iAd4QuqmKcchfbU8FNzeBNF9tLeFXHZLU4yRkq-bjm7Q";
     Map<String, Object> refreshJson = new HashMap<>();
@@ -62,22 +62,12 @@ public class JWTRefreshEndpointTest extends LessonTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Authorization", "Bearer " + accessTokenTom)
                     .content(objectMapper.writeValueAsString(refreshJson)))
-            .andExpect(status().isOk())
+            .andExpect(status().isUnauthorized())
             .andReturn();
-    tokens = objectMapper.readValue(result.getResponse().getContentAsString(), Map.class);
-    accessTokenTom = tokens.get("access_token");
-
-    // Now checkout with the new token from Tom
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/JWT/refresh/checkout")
-                .header("Authorization", "Bearer " + accessTokenTom))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(true)));
   }
 
   @Test
-  void solutionWithAlgNone() throws Exception {
+  void unsignedTokenIsRejected() throws Exception {
     String tokenWithNoneAlgorithm =
         Jwts.builder()
             .setHeaderParam("alg", "none")
@@ -90,9 +80,9 @@ public class JWTRefreshEndpointTest extends LessonTest {
             MockMvcRequestBuilders.post("/JWT/refresh/checkout")
                 .header("Authorization", "Bearer " + tokenWithNoneAlgorithm))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(true)))
+        .andExpect(jsonPath("$.lessonCompleted", is(false)))
         .andExpect(
-            jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("jwt-refresh-alg-none"))));
+            jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("jwt-invalid-token"))));
   }
 
   @Test
@@ -104,7 +94,10 @@ public class JWTRefreshEndpointTest extends LessonTest {
             MockMvcRequestBuilders.post("/JWT/refresh/checkout")
                 .header("Authorization", "Bearer " + accessTokenTom))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.output", CoreMatchers.containsString("JWT expired at")));
+        // signed with a key the server no longer uses, so it fails signature verification
+        .andExpect(jsonPath("$.lessonCompleted", is(false)))
+        .andExpect(
+            jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("jwt-invalid-token"))));
   }
 
   @Test

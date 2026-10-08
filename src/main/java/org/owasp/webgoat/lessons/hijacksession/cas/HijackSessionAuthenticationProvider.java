@@ -4,10 +4,10 @@
  */
 package org.owasp.webgoat.lessons.hijacksession.cas;
 
-import java.time.Instant;
+import java.security.SecureRandom;
+import java.util.HexFormat;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.DoublePredicate;
 import java.util.function.Supplier;
@@ -19,19 +19,24 @@ import org.springframework.web.context.annotation.ApplicationScope;
  * @author Angel Olle Blazquez
  */
 
-// weak id value and mechanism
+// Session ids are 128 bits from a CSPRNG: no counter or timestamp component that would let one
+// session id be predicted from another.
 
 @ApplicationScope
 @Component
 public class HijackSessionAuthenticationProvider implements AuthenticationProvider<Authentication> {
 
   private Queue<String> sessions = new LinkedList<>();
-  private static long id = new Random().nextLong() & Long.MAX_VALUE;
+  private static final SecureRandom RANDOM = new SecureRandom();
   protected static final int MAX_SESSIONS = 50;
 
   private static final DoublePredicate PROBABILITY_DOUBLE_PREDICATE = pr -> pr < 0.75;
   private static final Supplier<String> GENERATE_SESSION_ID =
-      () -> ++id + "-" + Instant.now().toEpochMilli();
+      () -> {
+        byte[] bytes = new byte[16];
+        RANDOM.nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+      };
   public static final Supplier<Authentication> AUTHENTICATION_SUPPLIER =
       () -> Authentication.builder().id(GENERATE_SESSION_ID.get()).build();
 

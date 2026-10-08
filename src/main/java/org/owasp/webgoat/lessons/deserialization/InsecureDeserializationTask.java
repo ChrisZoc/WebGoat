@@ -10,6 +10,7 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InvalidClassException;
+import java.io.ObjectInputFilter;
 import java.io.ObjectInputStream;
 import java.util.Base64;
 import org.dummy.insecure.framework.VulnerableTaskHolder;
@@ -29,6 +30,16 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class InsecureDeserializationTask implements AssignmentEndpoint {
 
+  /**
+   * Allow-list for untrusted tokens: only plain JDK value types may be deserialized. Any other
+   * class (including application classes with side effects in readObject) is rejected before it is
+   * instantiated, and the graph size is bounded.
+   */
+  private static final ObjectInputFilter TOKEN_FILTER =
+      ObjectInputFilter.Config.createFilter(
+          "maxdepth=5;maxrefs=100;maxbytes=10000;maxarray=1000;"
+              + "java.lang.String;java.lang.Number;java.lang.Integer;java.lang.Long;!*");
+
   @PostMapping("/InsecureDeserialization/task")
   @ResponseBody
   public AttackResult completed(@RequestParam String token) throws IOException {
@@ -41,6 +52,7 @@ public class InsecureDeserializationTask implements AssignmentEndpoint {
 
     try (ObjectInputStream ois =
         new ObjectInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(b64token)))) {
+      ois.setObjectInputFilter(TOKEN_FILTER);
       before = System.currentTimeMillis();
       Object o = ois.readObject();
       if (!(o instanceof VulnerableTaskHolder)) {

@@ -37,8 +37,8 @@ class SpoofCookieAssignmentTest extends LessonTest {
   private static final String ERASE_COOKIE_CONTEXT_PATH = "/SpoofCookie/cleanup";
 
   @Test
-  @DisplayName("Lesson completed")
-  void success() throws Exception {
+  @DisplayName("Forged (unsigned) cookie for tom is rejected")
+  void forgedCookieIsRejected() throws Exception {
     Cookie cookie = new Cookie(COOKIE_NAME, "NjI2MTcwNGI3YTQxNGE1OTU2NzQ2ZDZmNzQ=");
 
     ResultActions result =
@@ -49,7 +49,32 @@ class SpoofCookieAssignmentTest extends LessonTest {
                 .param("password", ""));
 
     result.andExpect(status().isOk());
-    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+  }
+
+  @Test
+  @DisplayName("Cookie issued by the server is accepted for its own user")
+  void issuedCookieIsAccepted() throws Exception {
+    String issued =
+        mockMvc
+            .perform(
+                MockMvcRequestBuilders.post(LOGIN_CONTEXT_PATH)
+                    .param("username", "webgoat")
+                    .param("password", "webgoat"))
+            .andReturn()
+            .getResponse()
+            .getCookie(COOKIE_NAME)
+            .getValue();
+
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post(LOGIN_CONTEXT_PATH)
+                .cookie(new Cookie(COOKIE_NAME, issued))
+                .param("username", "")
+                .param("password", ""))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)))
+        .andExpect(jsonPath("$.output", CoreMatchers.containsString("webgoat")));
   }
 
   @Test

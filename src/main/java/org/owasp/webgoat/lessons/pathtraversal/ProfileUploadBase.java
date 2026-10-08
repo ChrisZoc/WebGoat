@@ -6,7 +6,6 @@ package org.owasp.webgoat.lessons.pathtraversal;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -48,13 +47,22 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
 
     try {
-      var uploadedFile = new File(uploadDirectory, fullName);
+      // Only the last path element of the user supplied name is used, and the resolved file must
+      // be a direct child of the user's upload directory: "../" (in any encoding or nesting) can
+      // no longer move the file elsewhere.
+      var fileName = new File(fullName.replace('\\', '/')).getName();
+      var uploadedFile = new File(uploadDirectory, fileName);
+      if (!StringUtils.hasText(fileName)
+          || ".".equals(fileName)
+          || "..".equals(fileName)
+          || !uploadDirectory
+              .getCanonicalFile()
+              .equals(uploadedFile.getCanonicalFile().getParentFile())) {
+        return failed(this).feedback("path-traversal-profile-empty-name").build();
+      }
       uploadedFile.createNewFile();
       FileCopyUtils.copy(file.getBytes(), uploadedFile);
 
-      if (attemptWasMade(uploadDirectory, uploadedFile)) {
-        return solvedIt(uploadedFile);
-      }
       return informationMessage(this)
           .feedback("path-traversal-profile-updated")
           .feedbackArgs(uploadedFile.getAbsoluteFile())
@@ -73,24 +81,6 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     }
     Files.createDirectories(uploadDirectory.toPath());
     return uploadDirectory;
-  }
-
-  private boolean attemptWasMade(File expectedUploadDirectory, File uploadedFile)
-      throws IOException {
-    return !expectedUploadDirectory
-        .getCanonicalPath()
-        .equals(uploadedFile.getParentFile().getCanonicalPath());
-  }
-
-  private AttackResult solvedIt(File uploadedFile) throws IOException {
-    if (uploadedFile.getCanonicalFile().getParentFile().getName().endsWith("PathTraversal")) {
-      return success(this).build();
-    }
-    return failed(this)
-        .attemptWasMade()
-        .feedback("path-traversal-profile-attempt")
-        .feedbackArgs(uploadedFile.getCanonicalPath())
-        .build();
   }
 
   public ResponseEntity<?> getProfilePicture(@CurrentUsername String username) {

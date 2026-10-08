@@ -33,20 +33,15 @@ public class SqlInjectionLesson8Test extends LessonTest {
   }
 
   @Test
-  public void multipleAccounts() throws Exception {
+  public void injectedConditionIsTreatedAsData() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/SqlInjection/attack8")
                 .param("name", "Smith")
                 .param("auth_tan", "3SL99A' OR '1' = '1"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("lessonCompleted", is(true)))
-        .andExpect(jsonPath("$.feedback", is(messages.getMessage("sql-injection.8.success"))))
-        .andExpect(
-            jsonPath(
-                "$.output",
-                containsString(
-                    "<tr><td>96134<\\/td><td>Bob<\\/td><td>Franco<\\/td><td>Marketing<\\/td><td>83700<\\/td><td>LO9S2V<\\/td><\\/tr>")));
+        .andExpect(jsonPath("lessonCompleted", is(false)))
+        .andExpect(jsonPath("$.feedback", is(messages.getMessage("sql-injection.8.no.results"))));
   }
 
   @Test
@@ -76,7 +71,7 @@ public class SqlInjectionLesson8Test extends LessonTest {
   }
 
   @Test
-  public void malformedQueryReturnsError() throws Exception {
+  public void malformedInjectionIsTreatedAsData() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/SqlInjection/attack8")
@@ -84,6 +79,6 @@ public class SqlInjectionLesson8Test extends LessonTest {
                 .param("auth_tan", "3SL99A' OR '1' = '1'"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("lessonCompleted", is(false)))
-        .andExpect(jsonPath("$.output", containsString("feedback-negative")));
+        .andExpect(jsonPath("$.feedback", is(messages.getMessage("sql-injection.8.no.results"))));
   }
 }

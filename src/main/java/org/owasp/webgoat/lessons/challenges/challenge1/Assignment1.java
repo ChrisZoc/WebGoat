@@ -8,6 +8,8 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.owasp.webgoat.lessons.challenges.SolutionConstants.PASSWORD;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.lessons.challenges.Flags;
@@ -31,9 +33,9 @@ public class Assignment1 implements AssignmentEndpoint {
     boolean ipAddressKnown = true;
     boolean passwordCorrect =
         "admin".equals(username)
-            && PASSWORD
-                .replace("1234", String.format("%04d", ImageServlet.PINCODE))
-                .equals(password);
+            && MessageDigest.isEqual(
+                PASSWORD.getBytes(StandardCharsets.UTF_8),
+                password.getBytes(StandardCharsets.UTF_8));
     if (passwordCorrect && ipAddressKnown) {
       return success(this).feedback("challenge.solved").feedbackArgs(flags.getFlag(1)).build();
     } else if (passwordCorrect) {

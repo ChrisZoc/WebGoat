@@ -9,7 +9,11 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -17,7 +21,6 @@ import org.owasp.webgoat.lessons.challenges.Email;
 import org.owasp.webgoat.lessons.challenges.Flags;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -37,7 +40,15 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 public class Assignment7 implements AssignmentEndpoint {
 
-  public static final String ADMIN_PASSWORD_LINK = "375afe1104f4a487a73823c50a9292a2";
+  // Generated per server start from a CSPRNG: the admin reset link must not be static or
+  // derivable from the (leaked) link generation code.
+  public static final String ADMIN_PASSWORD_LINK = randomToken();
+
+  private static String randomToken() {
+    byte[] bytes = new byte[16];
+    new SecureRandom().nextBytes(bytes);
+    return HexFormat.of().formatHex(bytes);
+  }
 
   private static final String TEMPLATE =
       "Hi, you requested a password reset link, please use this <a target='_blank'"
@@ -63,7 +74,9 @@ public class Assignment7 implements AssignmentEndpoint {
 
   @GetMapping("/challenge/7/reset-password/{link}")
   public ResponseEntity<String> resetPassword(@PathVariable(value = "link") String link) {
-    if (link.equals(ADMIN_PASSWORD_LINK)) {
+    if (MessageDigest.isEqual(
+        link.getBytes(StandardCharsets.UTF_8),
+        ADMIN_PASSWORD_LINK.getBytes(StandardCharsets.UTF_8))) {
       return ResponseEntity.accepted()
           .body(
               "<h1>Success!!</h1>"
@@ -71,8 +84,7 @@ public class Assignment7 implements AssignmentEndpoint {
                   + "<br/><br/>Here is your flag: "
                   + flags.getFlag(7));
     }
-    return ResponseEntity.status(HttpStatus.I_AM_A_TEAPOT)
-        .body("That is not the reset link for admin");
+    return ResponseEntity.ok("That is not the reset link for admin");
   }
 
   @PostMapping("/challenge/7")

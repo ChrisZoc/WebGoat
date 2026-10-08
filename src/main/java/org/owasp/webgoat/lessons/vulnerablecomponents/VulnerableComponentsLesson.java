@@ -8,6 +8,9 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import com.thoughtworks.xstream.XStream;
+import com.thoughtworks.xstream.security.NoTypePermission;
+import com.thoughtworks.xstream.security.NullPermission;
+import com.thoughtworks.xstream.security.PrimitiveTypePermission;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -23,10 +26,7 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
 
   @PostMapping("/VulnerableComponents/attack1")
   public @ResponseBody AttackResult completed(@RequestParam String payload) {
-    XStream xstream = new XStream();
-    xstream.setClassLoader(Contact.class.getClassLoader());
-    xstream.alias("contact", ContactImpl.class);
-    xstream.ignoreUnknownElements();
+    XStream xstream = createXStream();
     Contact contact = null;
 
     try {
@@ -43,6 +43,9 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
     } catch (Exception ex) {
       return failed(this).feedback("vulnerable-components.close").output(ex.getMessage()).build();
     }
+    if (contact == null) {
+      return failed(this).feedback("vulnerable-components.close").build();
+    }
 
     try {
       if (null != contact) {
@@ -56,5 +59,21 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
       return success(this).feedback("vulnerable-components.success").output(e.getMessage()).build();
     }
     return failed(this).feedback("vulnerable-components.fromXML").feedbackArgs(contact).build();
+  }
+
+  /**
+   * Deny every type by default and only allow what a contact is made of. Dynamic proxies,
+   * EventHandler, ProcessBuilder and other gadget classes are rejected before instantiation.
+   */
+  static XStream createXStream() {
+    XStream xstream = new XStream();
+    xstream.setClassLoader(Contact.class.getClassLoader());
+    xstream.addPermission(NoTypePermission.NONE);
+    xstream.addPermission(NullPermission.NULL);
+    xstream.addPermission(PrimitiveTypePermission.PRIMITIVES);
+    xstream.allowTypes(new Class[] {ContactImpl.class, String.class});
+    xstream.alias("contact", ContactImpl.class);
+    xstream.ignoreUnknownElements();
+    return xstream;
   }
 }

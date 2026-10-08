@@ -35,7 +35,7 @@ class Assignment7Test extends LessonTest {
   void resetPasswordTest() throws Exception {
     ResultActions result =
         mockMvc.perform(MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/any"));
-    result.andExpect(status().is(equalTo(HttpStatus.I_AM_A_TEAPOT.value())));
+    result.andExpect(status().isOk());
 
     result =
         mockMvc.perform(

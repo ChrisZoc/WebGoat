@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 class StoredXssCommentsTest extends LessonTest {
 
   @Test
-  void success() throws Exception {
+  void scriptInCommentIsStoredAsText() throws Exception {
     ResultActions results =
         mockMvc.perform(
             MockMvcRequestBuilders.post("/CrossSiteScriptingStored/stored-xss")
@@ -27,7 +27,7 @@ class StoredXssCommentsTest extends LessonTest {
                 .contentType(MediaType.APPLICATION_JSON));
 
     results.andExpect(status().isOk());
-    results.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+    results.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test

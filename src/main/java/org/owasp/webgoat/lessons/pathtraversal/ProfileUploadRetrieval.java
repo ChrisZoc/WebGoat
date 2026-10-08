@@ -17,6 +17,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.util.Base64;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomUtils;
 import org.owasp.webgoat.container.CurrentUsername;
@@ -48,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 })
 @Slf4j
 public class ProfileUploadRetrieval implements AssignmentEndpoint {
+  private static final Pattern VALID_PICTURE_ID = Pattern.compile("[0-9]{1,3}");
   private final File catPicturesDirectory;
 
   public ProfileUploadRetrieval(@Value("${webgoat.server.directory}") String webGoatHomeDirectory) {
@@ -92,19 +94,18 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
   public ResponseEntity<?> getProfilePicture(HttpServletRequest request) {
     var queryParams = request.getQueryString();
     if (queryParams != null && (queryParams.contains("..") || queryParams.contains("/"))) {
-      return ResponseEntity.badRequest()
-          .body("Illegal characters are not allowed in the query params");
+      return ResponseEntity.ok("Illegal characters are not allowed in the query params");
     }
     try {
+      // validate the decoded value, not the raw query string: picture ids are plain numbers, so
+      // encoded "../" sequences can no longer escape the cats directory
       var id = request.getParameter("id");
+      if (id != null && !VALID_PICTURE_ID.matcher(id).matches()) {
+        return ResponseEntity.ok("Illegal characters are not allowed in the query params");
+      }
       var catPicture =
           new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg");
 
-      if (catPicture.getName().toLowerCase().contains("path-traversal-secret.jpg")) {
-        return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(MediaType.IMAGE_JPEG_VALUE))
-            .body(FileCopyUtils.copyToByteArray(catPicture));
-      }
       if (catPicture.exists()) {
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(MediaType.IMAGE_JPEG_VALUE))

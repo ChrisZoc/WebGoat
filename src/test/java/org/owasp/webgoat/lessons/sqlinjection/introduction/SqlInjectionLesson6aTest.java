@@ -36,12 +36,7 @@ public class SqlInjectionLesson6aTest extends LessonTest {
                         + " --"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.lessonCompleted", is(false)))
-        .andExpect(
-            jsonPath(
-                "$.output",
-                containsString(
-                    "column number mismatch detected in rows of UNION, INTERSECT, EXCEPT, or VALUES"
-                        + " operation")));
+        .andExpect(jsonPath("$.feedback", is(messages.getMessage("sql-injection.6a.no.results"))));
   }
 
   @Test
@@ -54,18 +49,18 @@ public class SqlInjectionLesson6aTest extends LessonTest {
                     "Smith' union select 1,password, 1,'2','3', '4',1 from user_system_data --"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.lessonCompleted", is(false)))
-        .andExpect(jsonPath("$.output", containsString("incompatible data types in combination")));
+        .andExpect(jsonPath("$.feedback", is(messages.getMessage("sql-injection.6a.no.results"))));
   }
 
   @Test
-  public void correctSolution() throws Exception {
+  public void appendedStatementIsTreatedAsData() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/SqlInjectionAdvanced/attack6a")
                 .param("userid_6a", "Smith'; SELECT * from user_system_data; --"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(true)))
-        .andExpect(jsonPath("$.feedback", containsString("passW0rD")));
+        .andExpect(jsonPath("$.lessonCompleted", is(false)))
+        .andExpect(jsonPath("$.feedback", is(messages.getMessage("sql-injection.6a.no.results"))));
   }
 
   @Test
@@ -80,13 +75,13 @@ public class SqlInjectionLesson6aTest extends LessonTest {
   }
 
   @Test
-  public void noUnionUsed() throws Exception {
+  public void secondStatementIsTreatedAsData() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/SqlInjectionAdvanced/attack6a")
                 .param("userid_6a", "S'; Select * from user_system_data; --"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(true)))
-        .andExpect(jsonPath("$.feedback", containsString("UNION")));
+        .andExpect(jsonPath("$.lessonCompleted", is(false)))
+        .andExpect(jsonPath("$.feedback", is(messages.getMessage("sql-injection.6a.no.results"))));
   }
 }

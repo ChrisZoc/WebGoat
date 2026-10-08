@@ -4,6 +4,7 @@
  */
 package org.owasp.webgoat.lessons.missingac;
 
+import static org.owasp.webgoat.lessons.missingac.MissingFunctionAC.PASSWORD_SALT_ADMIN;
 import static org.owasp.webgoat.lessons.missingac.MissingFunctionAC.PASSWORD_SALT_SIMPLE;
 
 import org.assertj.core.api.Assertions;
@@ -21,8 +22,14 @@ class DisplayUserTest {
   @Test
   void testDisplayUserHash() {
     DisplayUser displayUser =
-        new DisplayUser(new User("user1", "password1", false), PASSWORD_SALT_SIMPLE);
+        new DisplayUser(new User("user1", "password1", false), "DeliberatelyInsecure1234");
     Assertions.assertThat(displayUser.getUserHash())
         .isEqualTo("cplTjehjI/e5ajqTxWaXhU5NW9UotJfXj+gcbPvfWWc=");
+  }
+
+  @Test
+  void testSaltIsNotTheOldStaticValue() {
+    Assertions.assertThat(PASSWORD_SALT_SIMPLE).isNotEqualTo("DeliberatelyInsecure1234");
+    Assertions.assertThat(PASSWORD_SALT_SIMPLE).isNotEqualTo(PASSWORD_SALT_ADMIN);
   }
 }

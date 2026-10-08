@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.ssrf;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -34,12 +33,9 @@ public class SSRFTask1 implements AssignmentEndpoint {
             "<img class=\"image\" alt=\"Tom\" src=\"images/tom.png\" width=\"25%\""
                 + " height=\"25%\">");
         return failed(this).feedback("ssrf.tom").output(html.toString()).build();
-      } else if (url.matches("images/jerry\\.png")) {
-        html.append(
-            "<img class=\"image\" alt=\"Jerry\" src=\"images/jerry.png\" width=\"25%\""
-                + " height=\"25%\">");
-        return success(this).feedback("ssrf.success").output(html.toString()).build();
       } else {
+        // Only the user's own picture may be requested. Any other resource (Jerry's picture,
+        // internal or external URLs) is refused instead of being fetched on the user's behalf.
         html.append("<img class=\"image\" alt=\"Silly Cat\" src=\"images/cat.jpg\">");
         return failed(this).feedback("ssrf.failure").output(html.toString()).build();
       }

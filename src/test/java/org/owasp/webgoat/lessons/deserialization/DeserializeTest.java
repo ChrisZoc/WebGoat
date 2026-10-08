@@ -19,27 +19,20 @@ class DeserializeTest extends LessonTest {
   private static String OS = System.getProperty("os.name").toLowerCase();
 
   @Test
-  void success() throws Exception {
-    if (OS.indexOf("win") > -1) {
-      mockMvc
-          .perform(
-              MockMvcRequestBuilders.post("/InsecureDeserialization/task")
-                  .param(
-                      "token",
-                      SerializationHelper.toString(
-                          new VulnerableTaskHolder("wait", "ping localhost -n 5"))))
-          .andExpect(status().isOk())
-          .andExpect(jsonPath("$.lessonCompleted", is(true)));
-    } else {
-      mockMvc
-          .perform(
-              MockMvcRequestBuilders.post("/InsecureDeserialization/task")
-                  .param(
-                      "token",
-                      SerializationHelper.toString(new VulnerableTaskHolder("wait", "sleep 5"))))
-          .andExpect(status().isOk())
-          .andExpect(jsonPath("$.lessonCompleted", is(true)));
-    }
+  void gadgetIsRejectedBeforeItRuns() throws Exception {
+    String command = OS.indexOf("win") > -1 ? "ping localhost -n 5" : "sleep 5";
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/InsecureDeserialization/task")
+                .param(
+                    "token",
+                    SerializationHelper.toString(new VulnerableTaskHolder("wait", command))))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                "$.feedback",
+                CoreMatchers.is(messages.getMessage("insecure-deserialization.invalidversion"))))
+        .andExpect(jsonPath("$.lessonCompleted", is(false)));
   }
 
   @Test
@@ -75,10 +68,12 @@ class DeserializeTest extends LessonTest {
     mockMvc
         .perform(MockMvcRequestBuilders.post("/InsecureDeserialization/task").param("token", token))
         .andExpect(status().isOk())
+        // the task holder class is not on the deserialization allow-list, so it is rejected
+        // before any of its fields (including the expiry date) are read
         .andExpect(
             jsonPath(
                 "$.feedback",
-                CoreMatchers.is(messages.getMessage("insecure-deserialization.expired"))))
+                CoreMatchers.is(messages.getMessage("insecure-deserialization.invalidversion"))))
         .andExpect(jsonPath("$.lessonCompleted", is(false)));
   }
 

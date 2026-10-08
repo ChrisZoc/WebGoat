@@ -34,29 +34,36 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class SigningAssignment implements AssignmentEndpoint {
 
+  /**
+   * Only the public half of the session key pair is ever handed out. The private key stays in the
+   * server-side session, so a client can no longer sign arbitrary messages with it.
+   */
   @RequestMapping(path = "/crypto/signing/getprivate", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String getPrivateKey(HttpServletRequest request)
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
+    return CryptoUtil.getPublicKeyInPEM(getOrCreateKeyPair(request));
+  }
 
-    String privateKey = (String) request.getSession().getAttribute("privateKeyString");
-    if (privateKey == null) {
-      KeyPair keyPair = CryptoUtil.generateKeyPair();
-      privateKey = CryptoUtil.getPrivateKeyInPEM(keyPair);
-      request.getSession().setAttribute("privateKeyString", privateKey);
+  private KeyPair getOrCreateKeyPair(HttpServletRequest request)
+      throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
+    KeyPair keyPair = (KeyPair) request.getSession().getAttribute("keyPair");
+    if (keyPair == null) {
+      keyPair = CryptoUtil.generateKeyPair();
       request.getSession().setAttribute("keyPair", keyPair);
     }
-    return privateKey;
+    return keyPair;
   }
 
   @PostMapping("/crypto/signing/verify")
   @ResponseBody
   public AttackResult completed(
-      HttpServletRequest request, @RequestParam String modulus, @RequestParam String signature) {
+      HttpServletRequest request, @RequestParam String modulus, @RequestParam String signature)
+      throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
 
     String tempModulus =
         modulus; /* used to validate the modulus of the public key but might need to be corrected */
-    KeyPair keyPair = (KeyPair) request.getSession().getAttribute("keyPair");
+    KeyPair keyPair = getOrCreateKeyPair(request);
     RSAPublicKey rsaPubKey = (RSAPublicKey) keyPair.getPublic();
     if (tempModulus.length() == 512) {
       tempModulus = "00".concat(tempModulus);

@@ -11,12 +11,10 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwt;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.impl.TextCodec;
 import java.time.Instant;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import java.util.Random;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -34,8 +32,9 @@ public class JWTSecretKeyEndpoint implements AssignmentEndpoint {
   public static final String[] SECRETS = {
     "victory", "business", "available", "shipping", "washington"
   };
-  public static final String JWT_SECRET =
-      TextCodec.BASE64.encode(SECRETS[new Random().nextInt(SECRETS.length)]);
+  // The token is signed with a random 512 bit key instead of a dictionary word, so the secret
+  // cannot be recovered by brute forcing the token offline.
+  public static final String JWT_SECRET = JwtSecrets.randomBase64Key();
   private static final String WEBGOAT_USER = "WebGoat";
   private static final List<String> expectedClaims =
       List.of("iss", "iat", "exp", "aud", "sub", "username", "Email", "Role");

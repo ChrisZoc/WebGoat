@@ -52,13 +52,6 @@ class BlindSendFileAssignmentTest extends LessonTest {
     return new ObjectMapper().reader().readTree(response.getResponse().getContentAsString()).size();
   }
 
-  private void containsComment(String expected) throws Exception {
-    mockMvc
-        .perform(get("/xxe/comments").contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.[*].text").value(Matchers.hasItem(expected)));
-  }
-
   @Test
   void validCommentMustBeAdded() throws Exception {
     int nrOfComments = countComments();
@@ -96,12 +89,12 @@ class BlindSendFileAssignmentTest extends LessonTest {
         .perform(
             MockMvcRequestBuilders.post("/xxe/blind")
                 .content(String.format(content, targetFile.toString())))
-        .andExpect(status().isOk());
-    containsComment("Nice try, you need to send the file to WebWolf");
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test
-  void solve() throws Exception {
+  void externalDtdIsNotFetched() throws Exception {
     File targetFile = new File(webGoatHomeDirectory, "/XXE/test/secret.txt");
     // Host DTD on WebWolf site
     String dtd =
@@ -129,11 +122,11 @@ class BlindSendFileAssignmentTest extends LessonTest {
             + "%remote;"
             + "]>"
             + "<comment><text>test&send;</text></comment>";
-    performXXE(xml);
+    assertXxeBlocked(xml);
   }
 
   @Test
-  void solveOnlyParamReferenceEntityInExternalDTD() throws Exception {
+  void parameterEntitiesAreNotResolved() throws Exception {
     File targetFile = new File(webGoatHomeDirectory, "/XXE/test/secret.txt");
     // Host DTD on WebWolf site
     String dtd =
@@ -161,29 +154,18 @@ class BlindSendFileAssignmentTest extends LessonTest {
             + "%all;"
             + "]>"
             + "<comment><text>test&send;</text></comment>";
-    performXXE(xml);
+    assertXxeBlocked(xml);
   }
 
-  private void performXXE(String xml) throws Exception {
-    // Call with XXE injection
+  private void assertXxeBlocked(String xml) throws Exception {
     mockMvc
         .perform(MockMvcRequestBuilders.post("/xxe/blind").content(xml))
         .andExpect(status().isOk())
         .andExpect(
             jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("assignment.not.solved"))));
 
-    List<LoggedRequest> requests =
-        webwolfServer.findAll(getRequestedFor(urlMatching("/landing.*")));
-    assertThat(requests.size()).isEqualTo(1);
-    String text = requests.get(0).getQueryParams().get("text").firstValue();
-
-    // Call with retrieved text
-    mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/xxe/blind")
-                .content("<comment><text>" + text + "</text></comment>"))
-        .andExpect(status().isOk())
-        .andExpect(
-            jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("assignment.solved"))));
+    // neither the external DTD nor the exfiltration URL may be requested by the server
+    assertThat(webwolfServer.findAll(getRequestedFor(urlMatching("/files/test.dtd")))).isEmpty();
+    assertThat(webwolfServer.findAll(getRequestedFor(urlMatching("/landing.*")))).isEmpty();
   }
 }

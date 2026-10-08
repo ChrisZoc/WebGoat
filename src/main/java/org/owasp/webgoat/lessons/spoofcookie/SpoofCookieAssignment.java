@@ -10,7 +10,14 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Map;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -39,6 +46,10 @@ public class SpoofCookieAssignment implements AssignmentEndpoint {
   private static final String COOKIE_INFO =
       "Cookie details for user %s:<br />" + COOKIE_NAME + "=%s";
   private static final String ATTACK_USERNAME = "tom";
+
+  // Server-side key used to sign the cookie. The encoding in EncDec is reversible, so without a
+  // signature anyone could craft a cookie for any user.
+  private static final byte[] COOKIE_SIGNING_KEY = newSigningKey();
 
   private static final Map<String, String> users =
       Map.of("webgoat", "webgoat", "admin", "admin", ATTACK_USERNAME, "apasswordfortom");
@@ -76,7 +87,7 @@ public class SpoofCookieAssignment implements AssignmentEndpoint {
 
     String authPassword = users.getOrDefault(lowerCasedUsername, "");
     if (!authPassword.isBlank() && authPassword.equals(password)) {
-      String newCookieValue = EncDec.encode(lowerCasedUsername);
+      String newCookieValue = sign(EncDec.encode(lowerCasedUsername));
       Cookie newCookie = new Cookie(COOKIE_NAME, newCookieValue);
       newCookie.setPath("/WebGoat");
       newCookie.setSecure(true);
@@ -91,9 +102,13 @@ public class SpoofCookieAssignment implements AssignmentEndpoint {
   }
 
   private AttackResult cookieLoginFlow(String cookieValue) {
+    String encodedUsername = verify(cookieValue);
+    if (encodedUsername == null) {
+      return failed(this).feedback("spoofcookie.wrong-cookie").build();
+    }
     String cookieUsername;
     try {
-      cookieUsername = EncDec.decode(cookieValue).toLowerCase();
+      cookieUsername = EncDec.decode(encodedUsername).toLowerCase();
     } catch (Exception e) {
       // for providing some instructive guidance, we won't return 4xx error here
       return failed(this).output(e.getMessage()).build();
@@ -109,5 +124,39 @@ public class SpoofCookieAssignment implements AssignmentEndpoint {
     }
 
     return failed(this).feedback("spoofcookie.wrong-cookie").build();
+  }
+
+  private static byte[] newSigningKey() {
+    byte[] key = new byte[32];
+    new SecureRandom().nextBytes(key);
+    return key;
+  }
+
+  private static String hmac(String value) {
+    try {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(COOKIE_SIGNING_KEY, "HmacSHA256"));
+      return Base64.getUrlEncoder()
+          .withoutPadding()
+          .encodeToString(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (GeneralSecurityException e) {
+      throw new IllegalStateException("HmacSHA256 not available", e);
+    }
+  }
+
+  private static String sign(String encodedValue) {
+    return encodedValue + "." + hmac(encodedValue);
+  }
+
+  /** Returns the signed payload if the signature is valid, otherwise {@code null}. */
+  private static String verify(String cookieValue) {
+    int separator = cookieValue.lastIndexOf('.');
+    if (separator <= 0) {
+      return null;
+    }
+    String payload = cookieValue.substring(0, separator);
+    byte[] expected = hmac(payload).getBytes(StandardCharsets.UTF_8);
+    byte[] actual = cookieValue.substring(separator + 1).getBytes(StandardCharsets.UTF_8);
+    return MessageDigest.isEqual(expected, actual) ? payload : null;
   }
 }

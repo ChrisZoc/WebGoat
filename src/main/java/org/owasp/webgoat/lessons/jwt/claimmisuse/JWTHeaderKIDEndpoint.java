@@ -12,6 +12,7 @@ import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.Jwt;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureException;
 import io.jsonwebtoken.SigningKeyResolverAdapter;
 import io.jsonwebtoken.impl.TextCodec;
 import java.sql.ResultSet;
@@ -68,19 +69,21 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
                       @Override
                       public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
                         final String kid = (String) header.get("kid");
-                        try (var connection = dataSource.getConnection()) {
-                          ResultSet rs =
-                              connection
-                                  .createStatement()
-                                  .executeQuery(
-                                      "SELECT key FROM jwt_keys WHERE id = '" + kid + "'");
-                          while (rs.next()) {
-                            return TextCodec.BASE64.decode(rs.getString(1));
+                        try (var connection = dataSource.getConnection();
+                            var statement =
+                                connection.prepareStatement(
+                                    "SELECT key FROM jwt_keys WHERE id = ?")) {
+                          // the kid header is attacker controlled: bind it, never concatenate it
+                          statement.setString(1, kid);
+                          try (ResultSet rs = statement.executeQuery()) {
+                            if (rs.next()) {
+                              return TextCodec.BASE64.decode(rs.getString(1));
+                            }
                           }
                         } catch (SQLException e) {
-                          errorMessage[0] = e.getMessage();
+                          errorMessage[0] = "Unable to look up the signing key";
                         }
-                        return null;
+                        throw new SignatureException("Unknown signing key");
                       }
                     })
                 .parseClaimsJws(token);
@@ -97,7 +100,7 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
         } else {
           return failed(this).feedback("jwt-final-not-tom").build();
         }
-      } catch (JwtException e) {
+      } catch (JwtException | IllegalArgumentException e) {
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
       }
     }

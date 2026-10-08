@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.thoughtworks.xstream.XStream;
 import com.thoughtworks.xstream.io.StreamException;
-import org.junit.jupiter.api.Disabled;
+import com.thoughtworks.xstream.security.ForbiddenClassException;
 import org.junit.jupiter.api.Test;
 
 public class VulnerableComponentsLessonTest {
@@ -30,33 +30,19 @@ public class VulnerableComponentsLessonTest {
 
   @Test
   public void testTransformation() throws Exception {
-    XStream xstream = new XStream();
-    xstream.setClassLoader(Contact.class.getClassLoader());
-    xstream.alias("contact", ContactImpl.class);
-    xstream.ignoreUnknownElements();
-    assertThat(xstream.fromXML(contact)).isNotNull();
+    XStream xstream = VulnerableComponentsLesson.createXStream();
+    assertThat(xstream.fromXML(contact)).isInstanceOf(ContactImpl.class);
   }
 
   @Test
-  @Disabled
   public void testIllegalTransformation() throws Exception {
-    XStream xstream = new XStream();
-    xstream.setClassLoader(Contact.class.getClassLoader());
-    xstream.alias("contact", ContactImpl.class);
-    xstream.ignoreUnknownElements();
-    Exception e =
-        assertThrows(
-            RuntimeException.class,
-            () -> ((Contact) xstream.fromXML(strangeContact)).getFirstName());
-    assertThat(e.getCause().getMessage().contains("calc.exe")).isTrue();
+    XStream xstream = VulnerableComponentsLesson.createXStream();
+    assertThrows(ForbiddenClassException.class, () -> xstream.fromXML(strangeContact));
   }
 
   @Test
   public void testIllegalPayload() throws Exception {
-    XStream xstream = new XStream();
-    xstream.setClassLoader(Contact.class.getClassLoader());
-    xstream.alias("contact", ContactImpl.class);
-    xstream.ignoreUnknownElements();
+    XStream xstream = VulnerableComponentsLesson.createXStream();
     Exception e =
         assertThrows(
             StreamException.class, () -> ((Contact) xstream.fromXML("bullssjfs")).getFirstName());

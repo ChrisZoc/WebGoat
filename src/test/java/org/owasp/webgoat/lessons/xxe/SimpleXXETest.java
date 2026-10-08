@@ -24,7 +24,7 @@ class SimpleXXETest extends LessonTest {
   }
 
   @Test
-  void workingAttack() throws Exception {
+  void xxeIsRejected() throws Exception {
     // Call with XXE injection
     mockMvc
         .perform(
@@ -33,8 +33,8 @@ class SimpleXXETest extends LessonTest {
                     "<?xml version=\"1.0\" standalone=\"yes\" ?><!DOCTYPE user [<!ENTITY root"
                         + " SYSTEM \"file:///\"> ]><comment><text>&root;</text></comment>"))
         .andExpect(status().isOk())
-        .andExpect(
-            jsonPath("$.feedback", CoreMatchers.is(messages.getMessage("assignment.solved"))));
+        // DTDs and external entities are disabled, so the file system is never read
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test

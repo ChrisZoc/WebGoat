@@ -55,26 +55,19 @@ public class AccountVerificationHelper {
   // end of cheating check ... the method below is the one of real interest. Can you find the flaw?
 
   public boolean verifyAccount(Integer userId, HashMap<String, String> submittedQuestions) {
-    // short circuit if no questions are submitted
-    if (submittedQuestions.entrySet().size() != secQuestionStore.get(verifyUserId).size()) {
+    // Every stored question must be answered, under its own name, with the stored answer. Missing
+    // or renamed parameters are a failed verification, not a skipped check.
+    Map<String, String> expectedAnswers = secQuestionStore.get(verifyUserId);
+    if (!verifyUserId.equals(userId)
+        || submittedQuestions == null
+        || !submittedQuestions.keySet().equals(expectedAnswers.keySet())) {
       return false;
     }
-
-    if (submittedQuestions.containsKey("secQuestion0")
-        && !submittedQuestions
-            .get("secQuestion0")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion0"))) {
-      return false;
+    for (Map.Entry<String, String> expected : expectedAnswers.entrySet()) {
+      if (!expected.getValue().equals(submittedQuestions.get(expected.getKey()))) {
+        return false;
+      }
     }
-
-    if (submittedQuestions.containsKey("secQuestion1")
-        && !submittedQuestions
-            .get("secQuestion1")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion1"))) {
-      return false;
-    }
-
-    // else
     return true;
   }
 }

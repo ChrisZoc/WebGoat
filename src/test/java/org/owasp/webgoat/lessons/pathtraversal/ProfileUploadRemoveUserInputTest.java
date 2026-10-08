@@ -26,7 +26,7 @@ class ProfileUploadRemoveUserInputTest extends LessonTest {
   }
 
   @Test
-  void solve() throws Exception {
+  void traversalInFileNameIsConfinedToUploadDirectory() throws Exception {
     var profilePicture =
         new MockMultipartFile(
             "uploadedFileRemoveUserInput", "../picture.jpg", "text/plain", "an image".getBytes());
@@ -38,7 +38,7 @@ class ProfileUploadRemoveUserInputTest extends LessonTest {
                 .param("fullNameFix", "John Doe"))
         .andExpect(status().is(200))
         .andExpect(jsonPath("$.assignment", CoreMatchers.equalTo("ProfileUploadRemoveUserInput")))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test

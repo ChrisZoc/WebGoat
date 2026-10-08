@@ -26,7 +26,7 @@ class ProfileUploadFixTest extends LessonTest {
   }
 
   @Test
-  void solve() throws Exception {
+  void nestedTraversalIsConfinedToUploadDirectory() throws Exception {
     var profilePicture =
         new MockMultipartFile(
             "uploadedFileFix", "../picture.jpg", "text/plain", "an image".getBytes());
@@ -38,7 +38,7 @@ class ProfileUploadFixTest extends LessonTest {
                 .param("fullNameFix", "..././John Doe"))
         .andExpect(status().is(200))
         .andExpect(jsonPath("$.assignment", CoreMatchers.equalTo("ProfileUploadFix")))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test

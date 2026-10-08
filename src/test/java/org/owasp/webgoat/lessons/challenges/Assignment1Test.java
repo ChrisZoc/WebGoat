@@ -11,7 +11,6 @@ import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.owasp.webgoat.container.plugins.LessonTest;
-import org.owasp.webgoat.lessons.challenges.challenge1.ImageServlet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
@@ -31,10 +30,7 @@ class Assignment1Test extends LessonTest {
             MockMvcRequestBuilders.post("/challenge/1")
                 .header("X-Forwarded-For", host)
                 .param("username", "admin")
-                .param(
-                    "password",
-                    SolutionConstants.PASSWORD.replace(
-                        "1234", String.format("%04d", ImageServlet.PINCODE))))
+                .param("password", SolutionConstants.PASSWORD))
         .andExpect(jsonPath("$.feedback", CoreMatchers.containsString("flag: " + flags.getFlag(1))))
         .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
   }

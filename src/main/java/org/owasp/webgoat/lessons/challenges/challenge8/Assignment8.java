@@ -4,15 +4,12 @@
  */
 package org.owasp.webgoat.lessons.challenges.challenge8;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
-import org.owasp.webgoat.lessons.challenges.Flags;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Slf4j
-@RequiredArgsConstructor
 public class Assignment8 implements AssignmentEndpoint {
 
   private static final Map<Integer, Integer> votes = new HashMap<>();
@@ -35,24 +31,14 @@ public class Assignment8 implements AssignmentEndpoint {
     votes.put(5, 300);
   }
 
-  private final Flags flags;
-
   @GetMapping(value = "/challenge/8/vote/{stars}", produces = MediaType.APPLICATION_JSON_VALUE)
   @ResponseBody
-  public ResponseEntity<?> vote(
-      @PathVariable(value = "stars") int nrOfStars, HttpServletRequest request) {
-    // Simple implementation of VERB Based Authentication
-    String msg = "";
-    if (request.getMethod().equals("GET")) {
-      var json =
-          Map.of("error", true, "message", "Sorry but you need to login first in order to vote");
-      return ResponseEntity.status(200).body(json);
-    }
-    Integer allVotesForStar = votes.getOrDefault(nrOfStars, 0);
-    votes.put(nrOfStars, allVotesForStar + 1);
-    return ResponseEntity.ok()
-        .header("X-FlagController", "Thanks for voting, your flag is: " + flags.getFlag(8))
-        .build();
+  public ResponseEntity<?> vote(@PathVariable(value = "stars") int nrOfStars) {
+    // Authorization must not depend on the HTTP verb: Spring also routes HEAD (and other
+    // implicit methods) here, so every request gets the same answer until a real login exists.
+    var json =
+        Map.of("error", true, "message", "Sorry but you need to login first in order to vote");
+    return ResponseEntity.status(200).body(json);
   }
 
   @GetMapping("/challenge/8/votes/")
