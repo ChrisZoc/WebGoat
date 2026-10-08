@@ -8,11 +8,10 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.springframework.util.StringUtils.hasText;
 
-import com.google.common.collect.Maps;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -45,12 +44,12 @@ import org.springframework.web.servlet.ModelAndView;
 public class ResetLinkAssignment implements AssignmentEndpoint {
 
   private static final String VIEW_FORMATTER = "lessons/passwordreset/templates/%s.html";
-  static final String PASSWORD_TOM_9 =
-      "somethingVeryRandomWhichNoOneWillEverTypeInAsPasswordForTom";
   static final String TOM_EMAIL = "tom@webgoat-cloud.org";
-  static Map<String, String> userToTomResetLink = new HashMap<>();
-  static Map<String, String> usersToTomPassword = Maps.newHashMap();
-  static List<String> resetLinks = new ArrayList<>();
+  // WebGoat user -> Tom's password set by that user; stays empty because Tom's reset links are
+  // owned by Tom (see resetLinks) and cannot be redeemed by anybody else
+  static final Map<String, String> usersToTomPassword = new ConcurrentHashMap<>();
+  // reset link -> WebGoat user who requested it; a link can only be used by its owner, once
+  static final Map<String, String> resetLinks = new ConcurrentHashMap<>();
 
   static final String TEMPLATE =
       """
@@ -71,10 +70,14 @@ public class ResetLinkAssignment implements AssignmentEndpoint {
   public AttackResult login(
       @RequestParam String password, @RequestParam String email, @CurrentUsername String username) {
     if (TOM_EMAIL.equals(email)) {
-      String passwordTom = usersToTomPassword.getOrDefault(username, PASSWORD_TOM_9);
-      if (passwordTom.equals(PASSWORD_TOM_9)) {
+      // Tom's password can only be changed through Tom's own reset link, which is mailed to Tom
+      // and can never be redeemed from another user's session; it was not reset by this user.
+      String passwordTom = usersToTomPassword.get(username);
+      if (passwordTom == null) {
         return failed(this).feedback("login_failed").build();
-      } else if (passwordTom.equals(password)) {
+      } else if (MessageDigest.isEqual(
+          passwordTom.getBytes(StandardCharsets.UTF_8),
+          String.valueOf(password).getBytes(StandardCharsets.UTF_8))) {
         return success(this).build();
       }
     }
@@ -84,7 +87,7 @@ public class ResetLinkAssignment implements AssignmentEndpoint {
   @GetMapping("/PasswordReset/reset/reset-password/{link}")
   public ModelAndView resetPassword(@PathVariable(value = "link") String link, Model model) {
     ModelAndView modelAndView = new ModelAndView();
-    if (ResetLinkAssignment.resetLinks.contains(link)) {
+    if (ResetLinkAssignment.resetLinks.containsKey(link)) {
       PasswordChangeForm form = new PasswordChangeForm();
       form.setResetLink(link);
       model.addAttribute("form", form);
@@ -110,22 +113,15 @@ public class ResetLinkAssignment implements AssignmentEndpoint {
       modelAndView.setViewName(VIEW_FORMATTER.formatted("password_reset"));
       return modelAndView;
     }
-    if (!resetLinks.contains(form.getResetLink())) {
+    // A reset link only resets the password of the account it was issued for: the link must
+    // belong to the current user, and it is consumed (single use). A link issued for Tom can never
+    // be redeemed from another user's session, even if it was intercepted.
+    String link = form.getResetLink();
+    if (link == null || username == null || !resetLinks.remove(link, username)) {
       modelAndView.setViewName(VIEW_FORMATTER.formatted("password_link_not_found"));
       return modelAndView;
     }
-    if (checkIfLinkIsFromTom(form.getResetLink(), username)) {
-      usersToTomPassword.put(username, form.getPassword());
-      userToTomResetLink.remove(username);
-    }
-    // reset links are single use
-    resetLinks.remove(form.getResetLink());
     modelAndView.setViewName(VIEW_FORMATTER.formatted("success"));
     return modelAndView;
-  }
-
-  private boolean checkIfLinkIsFromTom(String resetLinkFromForm, String username) {
-    String resetLink = userToTomResetLink.getOrDefault(username, "unknown");
-    return resetLink.equals(resetLinkFromForm);
   }
 }

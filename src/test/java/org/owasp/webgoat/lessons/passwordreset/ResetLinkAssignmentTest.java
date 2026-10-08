@@ -105,12 +105,80 @@ class ResetLinkAssignmentTest extends LessonTest {
             .perform(
                 MockMvcRequestBuilders.get(
                     "/PasswordReset/reset/reset-password/{link}",
-                    ResetLinkAssignment.resetLinks.get(0)))
+                    ResetLinkAssignment.resetLinks.keySet().iterator().next()))
             .andExpect(status().isOk())
             .andExpect(view().name("lessons/passwordreset/templates/password_reset.html"))
             .andReturn();
 
     Assertions.assertThat(resourceLoader.getResource(mvcResult.getModelAndView().getViewName()))
         .isNotNull();
+  }
+
+  private String tomsLink() {
+    return ResetLinkAssignment.resetLinks.entrySet().stream()
+        .filter(e -> e.getValue().equals("tom"))
+        .map(java.util.Map.Entry::getKey)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void interceptedTomLinkCannotBeUsedToTakeOverTomsAccount() throws Exception {
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
+                .param("email", TOM_EMAIL)
+                .header(HttpHeaders.HOST, webWolfHost + ":" + webWolfPort))
+        .andExpect(status().isOk());
+
+    // even with Tom's link in hand, another user cannot set Tom's password with it
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/reset/change-password")
+                .param("resetLink", tomsLink())
+                .param("password", "123456"))
+        .andExpect(status().isOk())
+        .andExpect(view().name("lessons/passwordreset/templates/password_link_not_found.html"));
+
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/reset/login")
+                .param("email", TOM_EMAIL)
+                .param("password", "123456"))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                    "$.lessonCompleted")
+                .value(false));
+  }
+
+  @Test
+  void ownLinkCanBeUsedOnceByItsOwner() throws Exception {
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/ForgotPassword/create-password-reset-link")
+                .param("email", "test@webgoat.org"))
+        .andExpect(status().isOk());
+    String link =
+        ResetLinkAssignment.resetLinks.entrySet().stream()
+            .filter(e -> e.getValue().equals("test"))
+            .map(java.util.Map.Entry::getKey)
+            .findFirst()
+            .orElseThrow();
+
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/reset/change-password")
+                .param("resetLink", link)
+                .param("password", "new_password"))
+        .andExpect(status().isOk())
+        .andExpect(view().name("lessons/passwordreset/templates/success.html"));
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/reset/change-password")
+                .param("resetLink", link)
+                .param("password", "new_password"))
+        .andExpect(status().isOk())
+        .andExpect(view().name("lessons/passwordreset/templates/password_link_not_found.html"));
   }
 }

@@ -8,7 +8,6 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 
 import java.util.UUID;
-import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,15 +43,15 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
   @PostMapping("/PasswordReset/ForgotPassword/create-password-reset-link")
   @ResponseBody
   public AttackResult sendPasswordResetLink(
-      @RequestParam String email, @CurrentUsername String username) {
+      @RequestParam String email) {
     String resetLink = UUID.randomUUID().toString();
-    ResetLinkAssignment.resetLinks.add(resetLink);
+    // The link belongs to the account of the e-mail address it is sent to, not to whoever asked
+    // for it: only that account can redeem it (see ResetLinkAssignment#changePassword).
+    ResetLinkAssignment.resetLinks.put(resetLink, accountOf(email));
     // The host in the reset link comes from server configuration, never from the request's Host
     // header: a forged Host header must not be able to send the reset token to another server.
-    if (ResetLinkAssignment.TOM_EMAIL.equals(email)) {
-      // Tom's link is delivered to Tom's own mailbox only and points back to WebGoat itself.
-      ResetLinkAssignment.userToTomResetLink.put(username, resetLink);
-    } else {
+    if (!ResetLinkAssignment.TOM_EMAIL.equals(email)) {
+      // Tom's link is delivered to Tom's own mailbox only, never to WebWolf or the requester.
       try {
         sendMailToUser(email, resetLink);
       } catch (Exception e) {
@@ -66,9 +65,13 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
     return informationMessage(this).feedback("email.send").feedbackArgs(email).build();
   }
 
-  private void sendMailToUser(String email, String resetLink) {
+  private static String accountOf(String email) {
     int index = email.indexOf("@");
-    String username = email.substring(0, index == -1 ? email.length() : index);
+    return email.substring(0, index == -1 ? email.length() : index);
+  }
+
+  private void sendMailToUser(String email, String resetLink) {
+    String username = accountOf(email);
     PasswordResetEmail mail =
         PasswordResetEmail.builder()
             .title("Your password reset link")
