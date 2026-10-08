@@ -43,7 +43,7 @@ public class BypassRestrictionsFrontendValidationTest extends LessonTest {
   }
 
   @Test
-  void bypassAllFieldShouldPass() throws Exception {
+  void bypassAllFieldShouldBeRejectedServerSide() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/BypassRestrictions/frontendValidation")
@@ -56,7 +56,7 @@ public class BypassRestrictionsFrontendValidationTest extends LessonTest {
                 .param("field7", "301-604-4882$$")
                 .param("error", "0"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", is(false)));
   }
 
   @Test
