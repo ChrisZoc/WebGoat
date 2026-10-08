@@ -8,19 +8,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.hamcrest.CoreMatchers;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.owasp.webgoat.container.plugins.LessonTest;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 public class SqlInjectionLesson2Test extends LessonTest {
 
-  @Test
-  public void solution() throws Exception {
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "SELECT department FROM employees WHERE userid=96134;",
+        "select department from employees where last_name='Franco'",
+        "select * from user_system_data"
+      })
+  public void clientSuppliedSqlIsNotExecuted(String query) throws Exception {
     mockMvc
-        .perform(
-            MockMvcRequestBuilders.post("/SqlInjection/attack2")
-                .param("query", "SELECT department FROM employees WHERE userid=96134;"))
+        .perform(MockMvcRequestBuilders.post("/SqlInjection/attack2").param("query", query))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)))
+        .andExpect(jsonPath("$.feedback", CoreMatchers.containsString("disabled")));
   }
 }
