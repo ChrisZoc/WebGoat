@@ -83,7 +83,7 @@ class ResetLinkAssignmentTest extends LessonTest {
   }
 
   @Test
-  void forgedHostHeaderGetsGenericAnswerAndNeverSolves() throws Exception {
+  void forgedHostHeaderIsHandledLikeANormalRequestAndNeverSolves() throws Exception {
     tokenStore.clear();
     mockMvc
         .perform(
@@ -96,7 +96,19 @@ class ResetLinkAssignmentTest extends LessonTest {
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
                     "$.feedback")
-                .value(org.hamcrest.Matchers.containsString("If an account exists")));
+                .value(
+                    org.hamcrest.Matchers.containsString(
+                        "An e-mail has been send to " + TOM_EMAIL)));
+    // a token is issued for Tom's own account, whatever the Host header said
+    Assertions.assertThat(tokenStore.size()).isEqualTo(1);
+    // ... and the Tom login still fails: the token is useless outside Tom's account
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/PasswordReset/reset/login")
+                .param("email", TOM_EMAIL)
+                .param("password", "123456"))
+        .andExpect(status().isOk())
+        .andExpect(notCompleted());
   }
 
   @Test

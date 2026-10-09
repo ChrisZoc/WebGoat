@@ -35,7 +35,7 @@ public class ResetTokenStore {
 
   static final Duration TOKEN_LIFETIME = Duration.ofMinutes(15);
   static final Duration RATE_WINDOW = Duration.ofMinutes(15);
-  static final int MAX_REQUESTS_PER_WINDOW = 5;
+  static final int MAX_REQUESTS_PER_WINDOW = 30;
 
   private static final SecureRandom RANDOM = new SecureRandom();
 

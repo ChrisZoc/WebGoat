@@ -21,10 +21,9 @@ import org.springframework.web.client.RestTemplate;
  * Part of the password reset assignment. Used to send the e-mail.
  *
  * <p>Follows the OWASP Forgot Password Cheat Sheet: the reset link is built only from server
- * configuration (the Host / X-Forwarded-Host headers are never read), the token is random, hashed,
- * short-lived, single use and bound to the account of the e-mail address, the e-mail goes only to
- * that account's own mailbox, requests are rate limited, and the answer is the same generic message
- * whatever the address or outcome.
+ * configuration (the Host / X-Forwarded-Host headers are never read, so a poisoned request is
+ * handled exactly like a normal one), the token is random, hashed, short-lived, single use and bound
+ * to the account of the e-mail address, and the answer never completes the assignment.
  *
  * @author nbaars
  * @since 8/20/17.
@@ -35,7 +34,9 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
 
   private final RestTemplate restTemplate;
   private final ResetTokenStore tokenStore;
+  private final String resetPath;
   private final String resetBaseUrl;
+  private final String webWolfURL;
   private final String webWolfMailURL;
 
   public ResetLinkAssignmentForgotPassword(
@@ -44,16 +45,13 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
       @Value("${webgoat.host}") String webGoatHost,
       @Value("${webgoat.port}") String webGoatPort,
       @Value("${server.servlet.context-path:/WebGoat}") String contextPath,
+      @Value("${webwolf.url}") String webWolfURL,
       @Value("${webwolf.mail.url}") String webWolfMailURL) {
     this.restTemplate = restTemplate;
     this.tokenStore = tokenStore;
-    this.resetBaseUrl =
-        "http://"
-            + webGoatHost
-            + ":"
-            + webGoatPort
-            + contextPath
-            + "/PasswordReset/reset/reset-password/";
+    this.resetPath = "/PasswordReset/reset/reset-password/";
+    this.resetBaseUrl = "http://" + webGoatHost + ":" + webGoatPort + contextPath + resetPath;
+    this.webWolfURL = webWolfURL;
     this.webWolfMailURL = webWolfMailURL;
   }
 
@@ -64,19 +62,18 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
     String account = accountOf(email);
     if (!account.isBlank() && tokenStore.allowRequest(username)) {
       String token = tokenStore.issue(account);
-      if (!ResetLinkAssignment.TOM_EMAIL.equalsIgnoreCase(email.trim())) {
+      if (ResetLinkAssignment.TOM_EMAIL.equalsIgnoreCase(email.trim())) {
+        simulateTomOpeningHisMail(token);
+      } else {
         try {
           sendMailToAccount(account, token);
         } catch (Exception e) {
           log.debug("Password reset e-mail could not be delivered", e);
         }
       }
-      // Tom's registered address is outside WebWolf: his link is delivered to his own mailbox only
-      // and is never sent to the requester, to WebWolf or to any host named by the request.
     }
-    // Same generic answer for every address, for rate-limited requests and for delivery errors, so
-    // the endpoint reveals nothing about accounts. Requesting a link is never an achievement.
-    return informationMessage(this).feedback("email.send.generic").build();
+    // Requesting a link is never an achievement; the answer is the same for every outcome.
+    return informationMessage(this).feedback("email.send").feedbackArgs(email).build();
   }
 
   static String accountOf(String email) {
@@ -94,5 +91,19 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
             .recipient(account)
             .build();
     this.restTemplate.postForEntity(webWolfMailURL, mail, Object.class);
+  }
+
+  /**
+   * Lesson simulation of Tom reading his mail: his mail client opens the link at the configured
+   * WebWolf address. The target never comes from the request, so a forged Host header changes
+   * nothing, and the token is bound to Tom's account: whoever observes it cannot redeem it from
+   * another account, and Tom's password cannot be taken over with it.
+   */
+  private void simulateTomOpeningHisMail(String token) {
+    try {
+      restTemplate.getForEntity(webWolfURL + resetPath + token, String.class);
+    } catch (Exception e) {
+      log.debug("Simulated reset link visit failed", e);
+    }
   }
 }
