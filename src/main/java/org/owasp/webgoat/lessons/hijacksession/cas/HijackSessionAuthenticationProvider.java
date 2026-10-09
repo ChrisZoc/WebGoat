@@ -4,82 +4,141 @@
  */
 package org.owasp.webgoat.lessons.hijacksession.cas;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.DoublePredicate;
-import java.util.function.Supplier;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.annotation.ApplicationScope;
 
 /**
+ * Session management following the OWASP Session Management Cheat Sheet / ASVS V3:
+ *
+ * <ul>
+ *   <li>session ids are 256 bits from a CSPRNG, base64url encoded: opaque, no counter, timestamp or
+ *       any other structure that would let one id be derived from another
+ *   <li>ids are only accepted when the server issued them; they are stored server side together
+ *       with the principal (the WebGoat user and the account name) they were issued to, and are
+ *       only valid for that same principal
+ *   <li>a new id is issued on every login, ids expire after an idle and an absolute timeout
+ * </ul>
+ *
  * @author Angel Olle Blazquez
  */
-
-// Session ids are 128 bits from a CSPRNG: no counter or timestamp component that would let one
-// session id be predicted from another.
-
 @ApplicationScope
 @Component
-public class HijackSessionAuthenticationProvider implements AuthenticationProvider<Authentication> {
+public class HijackSessionAuthenticationProvider {
 
-  private Queue<String> sessions = new LinkedList<>();
+  static final Duration IDLE_TIMEOUT = Duration.ofMinutes(15);
+  static final Duration ABSOLUTE_TIMEOUT = Duration.ofHours(2);
+  static final int MAX_SESSIONS = 10_000;
+
   private static final SecureRandom RANDOM = new SecureRandom();
-  protected static final int MAX_SESSIONS = 50;
 
-  private static final DoublePredicate PROBABILITY_DOUBLE_PREDICATE = pr -> pr < 0.75;
-  // The first part of the id is a 63-bit value from a CSPRNG instead of a sequential counter, so
-  // consecutive ids reveal nothing and the gap left by another user's login can't be spotted; the
-  // second part stays the issue time. Knowing the time narrows nothing down: the random part
-  // alone can't be guessed.
-  private static final Supplier<String> GENERATE_SESSION_ID =
-      () -> randomPositiveLong() + "-" + System.currentTimeMillis();
+  private static final class Session {
+    private final String owner;
+    private final String name;
+    private final Instant created;
+    private volatile Instant lastUsed;
 
-  private static long randomPositiveLong() {
-    return RANDOM.nextLong() & Long.MAX_VALUE;
-  }
-  public static final Supplier<Authentication> AUTHENTICATION_SUPPLIER =
-      () -> Authentication.builder().id(GENERATE_SESSION_ID.get()).build();
-
-  @Override
-  public Authentication authenticate(Authentication authentication) {
-    if (authentication == null) {
-      return AUTHENTICATION_SUPPLIER.get();
+    private Session(String owner, String name, Instant now) {
+      this.owner = owner;
+      this.name = name;
+      this.created = now;
+      this.lastUsed = now;
     }
+  }
 
-    if (StringUtils.isNotEmpty(authentication.getId())
-        && sessions.contains(authentication.getId())) {
-      authentication.setAuthenticated(true);
+  private final Map<String, Session> sessions = new ConcurrentHashMap<>();
+  private final Clock clock;
+
+  public HijackSessionAuthenticationProvider() {
+    this(Clock.systemUTC());
+  }
+
+  HijackSessionAuthenticationProvider(Clock clock) {
+    this.clock = clock;
+  }
+
+  /**
+   * Starts a new session for {@code username}, logged in by WebGoat user {@code owner}. The
+   * returned authentication carries a fresh random id; any previously presented id is discarded by
+   * the caller (see {@link #invalidate(String)}). The lesson has no account store, so the
+   * credentials themselves are never considered verified.
+   */
+  public Authentication login(String owner, String username, String password) {
+    if (StringUtils.isAnyBlank(owner, username, password)) {
+      return Authentication.builder().name(username).build();
+    }
+    purgeExpired();
+    if (sessions.size() >= MAX_SESSIONS) {
+      // never evict somebody else's session to make room; just refuse to create more
+      return Authentication.builder().name(username).build();
+    }
+    String id = newId();
+    sessions.put(id, new Session(owner, username, clock.instant()));
+    return Authentication.builder().name(username).credentials(null).id(id).build();
+  }
+
+  /**
+   * Resumes a session: authenticated only if {@code id} was issued by this server, has not expired
+   * and belongs to exactly this WebGoat user and this account name.
+   */
+  public Authentication resume(String owner, String username, String id) {
+    Authentication authentication = Authentication.builder().name(username).id(id).build();
+    if (StringUtils.isAnyBlank(owner, username, id)) {
       return authentication;
     }
-
-    if (StringUtils.isEmpty(authentication.getId())) {
-      authentication.setId(GENERATE_SESSION_ID.get());
+    Session session = sessions.get(id);
+    if (session == null) {
+      return authentication;
     }
-
-    authorizedUserAutoLogin();
-
+    Instant now = clock.instant();
+    if (isExpired(session, now)) {
+      sessions.remove(id, session);
+      return authentication;
+    }
+    if (equal(session.owner, owner) && equal(session.name, username)) {
+      session.lastUsed = now;
+      authentication.setAuthenticated(true);
+    }
     return authentication;
   }
 
-  protected void authorizedUserAutoLogin() {
-    if (!PROBABILITY_DOUBLE_PREDICATE.test(ThreadLocalRandom.current().nextDouble())) {
-      Authentication authentication = AUTHENTICATION_SUPPLIER.get();
-      authentication.setAuthenticated(true);
-      addSession(authentication.getId());
+  public void invalidate(String id) {
+    if (StringUtils.isNotEmpty(id)) {
+      sessions.remove(id);
     }
   }
 
-  protected boolean addSession(String sessionId) {
-    if (sessions.size() >= MAX_SESSIONS) {
-      sessions.remove();
-    }
-    return sessions.add(sessionId);
-  }
-
-  protected int getSessionsSize() {
+  int getSessionsSize() {
     return sessions.size();
+  }
+
+  private boolean isExpired(Session session, Instant now) {
+    return !now.isBefore(session.lastUsed.plus(IDLE_TIMEOUT))
+        || !now.isBefore(session.created.plus(ABSOLUTE_TIMEOUT));
+  }
+
+  private void purgeExpired() {
+    Instant now = clock.instant();
+    sessions.values().removeIf(s -> isExpired(s, now));
+  }
+
+  private static boolean equal(String a, String b) {
+    return MessageDigest.isEqual(
+        a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static String newId() {
+    byte[] bytes = new byte[32];
+    RANDOM.nextBytes(bytes);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
   }
 }

@@ -4,132 +4,83 @@
  */
 package org.owasp.webgoat.lessons.hijacksession.cas;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.StringUtils;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.owasp.webgoat.lessons.hijacksession.cas.Authentication.AuthenticationBuilder;
 
 /***
  *
  * @author Angel Olle Blazquez
  *
  */
-
 class HijackSessionAuthenticationProviderTest {
+
+  private static class MutableClock extends Clock {
+    Instant now = Instant.parse("2024-01-01T00:00:00Z");
+
+    @Override
+    public ZoneId getZone() {
+      return ZoneOffset.UTC;
+    }
+
+    @Override
+    public Clock withZone(ZoneId zone) {
+      return this;
+    }
+
+    @Override
+    public Instant instant() {
+      return now;
+    }
+  }
 
   HijackSessionAuthenticationProvider provider = new HijackSessionAuthenticationProvider();
 
-  @ParameterizedTest
-  @DisplayName("Provider authentication test")
-  @MethodSource("authenticationForCookieValues")
-  void testProviderAuthenticationGeneratesCookie(Authentication authentication) {
-    Authentication auth = provider.authenticate(authentication);
-    assertThat(auth.getId(), not(StringUtils.isEmpty(auth.getId())));
-  }
-
   @Test
-  void testAuthenticated() {
-    String id = "anyId";
-    provider.addSession(id);
-
-    Authentication auth = provider.authenticate(Authentication.builder().id(id).build());
-
-    assertThat(auth.getId(), is(id));
-    assertThat(auth.isAuthenticated(), is(true));
-
-    auth = provider.authenticate(Authentication.builder().id("otherId").build());
-
-    assertThat(auth.getId(), is("otherId"));
-    assertThat(auth.isAuthenticated(), is(false));
-  }
-
-  @Test
-  void testAuthenticationToString() {
-    AuthenticationBuilder authBuilder =
-        Authentication.builder()
-            .name("expectedName")
-            .credentials("expectedCredentials")
-            .id("expectedId");
-
-    Authentication auth = authBuilder.build();
-
-    String expected =
-        "Authentication.AuthenticationBuilder("
-            + "name="
-            + auth.getName()
-            + ", credentials="
-            + auth.getCredentials()
-            + ", id="
-            + auth.getId()
-            + ")";
-
-    assertThat(authBuilder.toString(), is(expected));
-
-    expected =
-        "Authentication(authenticated="
-            + auth.isAuthenticated()
-            + ", name="
-            + auth.getName()
-            + ", credentials="
-            + auth.getCredentials()
-            + ", id="
-            + auth.getId()
-            + ")";
-
-    assertThat(auth.toString(), is(expected));
-  }
-
-  @Test
-  void sessionIdsHaveNoCounter() {
+  void idsAreRandomOpaqueAndUnique() {
     var ids =
-        Stream.generate(() -> provider.authenticate(null).getId()).limit(200).distinct().toList();
-
-    assertThat(ids.size(), is(200));
-    for (int i = 1; i < ids.size(); i++) {
-      String[] previous = ids.get(i - 1).split("-");
-      String[] current = ids.get(i).split("-");
-      long delta = Long.parseLong(current[0]) - Long.parseLong(previous[0]);
-      // the old scheme was <previous + 1>-<epoch millis>
-      assertThat(delta == 1 || delta == 2, is(false));
-    }
+        Stream.generate(() -> provider.login("u", "tom", "pw").getId())
+            .limit(500)
+            .distinct()
+            .toList();
+    assertThat(ids).hasSize(500).allMatch(id -> id.matches("[A-Za-z0-9_-]{43}"));
   }
 
   @Test
-  void guessedNeighbourIdIsNotAuthenticated() {
-    String issued = provider.authenticate(null).getId();
-    long counter = Long.parseLong(issued.split("-")[0]);
-    long now = System.currentTimeMillis();
-
-    for (long ts = now - 50; ts <= now + 50; ts++) {
-      for (long id = counter - 2; id <= counter + 2; id++) {
-        Authentication guess = Authentication.builder().id(id + "-" + ts).build();
-        assertThat(provider.authenticate(guess).isAuthenticated(), is(false));
-      }
-    }
+  void sessionOnlyValidForItsOwnPrincipal() {
+    String id = provider.login("alice", "tom", "pw").getId();
+    assertThat(provider.resume("alice", "tom", id).isAuthenticated()).isTrue();
+    assertThat(provider.resume("bob", "tom", id).isAuthenticated()).isFalse();
+    assertThat(provider.resume("alice", "jerry", id).isAuthenticated()).isFalse();
+    assertThat(provider.resume("alice", "", id).isAuthenticated()).isFalse();
+    assertThat(provider.resume("alice", "tom", "not-issued").isAuthenticated()).isFalse();
   }
 
   @Test
-  void testMaxSessions() {
-    for (int i = 0; i <= HijackSessionAuthenticationProvider.MAX_SESSIONS + 1; i++) {
-      provider.authorizedUserAutoLogin();
-      provider.addSession(null);
-    }
-
-    assertThat(provider.getSessionsSize(), is(HijackSessionAuthenticationProvider.MAX_SESSIONS));
+  void blankCredentialsGetNoSession() {
+    assertThat(provider.login("alice", "", "").getId()).isNull();
+    assertThat(provider.login("alice", "tom", " ").getId()).isNull();
+    assertThat(provider.getSessionsSize()).isZero();
   }
 
-  private static Stream<Arguments> authenticationForCookieValues() {
-    return Stream.of(
-        Arguments.of((Object) null),
-        Arguments.of(Authentication.builder().name("any").credentials("any").build()),
-        Arguments.of(Authentication.builder().id("any").build()));
+  @Test
+  void sessionsExpire() {
+    MutableClock clock = new MutableClock();
+    HijackSessionAuthenticationProvider p = new HijackSessionAuthenticationProvider(clock);
+    String id = p.login("alice", "tom", "pw").getId();
+    clock.now = clock.now.plus(HijackSessionAuthenticationProvider.IDLE_TIMEOUT);
+    assertThat(p.resume("alice", "tom", id).isAuthenticated()).isFalse();
+  }
+
+  @Test
+  void invalidatedSessionIsGone() {
+    String id = provider.login("alice", "tom", "pw").getId();
+    provider.invalidate(id);
+    assertThat(provider.resume("alice", "tom", id).isAuthenticated()).isFalse();
   }
 }

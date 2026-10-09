@@ -4,21 +4,20 @@
  */
 package org.owasp.webgoat.lessons.hijacksession;
 
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.servlet.http.Cookie;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.owasp.webgoat.container.plugins.LessonTest;
-import org.owasp.webgoat.lessons.hijacksession.cas.Authentication;
 import org.owasp.webgoat.lessons.hijacksession.cas.HijackSessionAuthenticationProvider;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 /***
@@ -31,43 +30,82 @@ class HijackSessionAssignmentTest extends LessonTest {
   private static final String COOKIE_NAME = "hijack_cookie";
   private static final String LOGIN_CONTEXT_PATH = "/HijackSession/login";
 
-  @MockBean
-  Authentication authenticationMock;
+  @Autowired HijackSessionAuthenticationProvider provider;
 
-  @MockBean HijackSessionAuthenticationProvider providerMock;
+  private MockHttpServletRequestBuilder post(String username, String password, String cookie) {
+    MockHttpServletRequestBuilder request =
+        MockMvcRequestBuilders.post(LOGIN_CONTEXT_PATH)
+            .param("username", username)
+            .param("password", password);
+    if (cookie != null) {
+      request.cookie(new Cookie(COOKIE_NAME, cookie));
+    }
+    return request;
+  }
 
-  @Test
-  void testValidCookie() throws Exception {
-    lenient().when(authenticationMock.isAuthenticated()).thenReturn(true);
-    lenient()
-        .when(providerMock.authenticate(any(Authentication.class)))
-        .thenReturn(authenticationMock);
-
-    Cookie cookie = new Cookie(COOKIE_NAME, "value");
-
-    ResultActions result =
-        mockMvc.perform(
-            MockMvcRequestBuilders.post(LOGIN_CONTEXT_PATH)
-                .cookie(cookie)
-                .param("username", "")
-                .param("password", ""));
-
-    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+  private String issuedCookie() throws Exception {
+    MvcResult result =
+        mockMvc.perform(post("webgoat", "webgoat", null)).andExpect(status().isOk()).andReturn();
+    return result.getResponse().getCookie(COOKIE_NAME).getValue();
   }
 
   @Test
-  void testBlankCookie() throws Exception {
-    lenient().when(authenticationMock.isAuthenticated()).thenReturn(false);
-    lenient()
-        .when(providerMock.authenticate(any(Authentication.class)))
-        .thenReturn(authenticationMock);
-    ResultActions result =
-        mockMvc.perform(
-            MockMvcRequestBuilders.post(LOGIN_CONTEXT_PATH)
-                .param("username", "webgoat")
-                .param("password", "webgoat"));
+  void loginIssuesRandomOpaqueHardenedCookie() throws Exception {
+    mockMvc
+        .perform(post("webgoat", "webgoat", null))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)))
+        .andExpect(header().string("Set-Cookie", Matchers.containsString("HttpOnly")))
+        .andExpect(header().string("Set-Cookie", Matchers.containsString("Secure")))
+        .andExpect(header().string("Set-Cookie", Matchers.containsString("SameSite=Strict")));
 
-    result.andExpect(cookie().value(COOKIE_NAME, not(emptyString())));
-    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+    String a = issuedCookie();
+    String b = issuedCookie();
+    assertThat(a).isNotEqualTo(b).matches("[A-Za-z0-9_-]{43}");
+  }
+
+  @Test
+  void blankCredentialsGetNoSession() throws Exception {
+    MvcResult result =
+        mockMvc
+            .perform(post("", "", null))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)))
+            .andReturn();
+    assertThat(result.getResponse().getCookie(COOKIE_NAME)).isNull();
+  }
+
+  @Test
+  void foreignSessionIdIsNeverAccepted() throws Exception {
+    // a session the server issued to another WebGoat user
+    String victimId = provider.login("victim", "victim", "secret").getId();
+
+    String[][] attempts = {{"", ""}, {"victim", "x"}, {"webgoat", "webgoat"}};
+    for (String[] creds : attempts) {
+      mockMvc
+          .perform(post(creds[0], creds[1], victimId))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+    }
+  }
+
+  @Test
+  void forgedSessionIdIsNeverAccepted() throws Exception {
+    for (String forged : new String[] {"1-1700000000000", "anyId", "value"}) {
+      mockMvc
+          .perform(post("", "", forged))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+    }
+  }
+
+  @Test
+  void ownSessionIsRecognisedButNeverCompletes() throws Exception {
+    String own = issuedCookie();
+    mockMvc
+        .perform(post("webgoat", "webgoat", own))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)))
+        .andExpect(jsonPath("$.feedback", Matchers.containsString("still valid")));
   }
 }
