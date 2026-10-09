@@ -40,7 +40,7 @@ class ResetTokenStoreTest {
 
     String a = store.issue("alice");
     String b = store.issue("bob");
-    assertThat(a).isNotEqualTo(b).hasSizeGreaterThanOrEqualTo(43);
+    assertThat(a).isNotEqualTo(b).matches("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}");
 
     assertThat(store.consume(a, "bob")).isFalse();
     assertThat(store.consume(a, "alice")).isTrue();

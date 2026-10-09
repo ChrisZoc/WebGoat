@@ -7,15 +7,14 @@ package org.owasp.webgoat.lessons.passwordreset;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
-import java.util.Base64;
 import java.util.Deque;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +22,7 @@ import org.springframework.stereotype.Component;
  * Password reset tokens following the OWASP Forgot Password Cheat Sheet:
  *
  * <ul>
- *   <li>256 bits from a CSPRNG, base64url encoded
+ *   <li>122 random bits from a CSPRNG, in the lesson's link format (a random UUID)
  *   <li>only a SHA-256 hash of the token is stored, bound to the account it was issued for
  *   <li>short lifetime, single use, and every older token of the account is invalidated when a new
  *       one is issued or one is redeemed
@@ -36,8 +35,6 @@ public class ResetTokenStore {
   static final Duration TOKEN_LIFETIME = Duration.ofMinutes(15);
   static final Duration RATE_WINDOW = Duration.ofMinutes(15);
   static final int MAX_REQUESTS_PER_WINDOW = 30;
-
-  private static final SecureRandom RANDOM = new SecureRandom();
 
   private record Entry(String account, Instant expiresAt) {}
 
@@ -57,9 +54,9 @@ public class ResetTokenStore {
 
   /** Issues a new token for {@code account}; earlier tokens of that account stop working. */
   public String issue(String account) {
-    byte[] bytes = new byte[32];
-    RANDOM.nextBytes(bytes);
-    String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    // UUID.randomUUID() draws from SecureRandom; the link keeps the format the lesson has always
+    // used, while what makes it safe is that it is bound to the account, short-lived and single use.
+    String token = UUID.randomUUID().toString();
     tokens.values().removeIf(e -> e.account().equals(account));
     tokens.put(hash(token), new Entry(account, clock.instant().plus(TOKEN_LIFETIME)));
     purgeExpired();
